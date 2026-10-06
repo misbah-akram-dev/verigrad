@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Verigrad{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+  <nav class="border-b border-slate-200 bg-white">
+    <div class="mx-auto flex max-w-5xl items-center gap-6 px-4 py-3">
+      <a href="/" class="text-lg font-semibold tracking-tight {% if active == '/' %}text-indigo-700{% else %}text-slate-900{% endif %}">Verigrad</a>
+      <ul class="flex flex-wrap gap-1 text-sm">
+        {% for page in nav_pages %}
+        <li>
+          <a href="{{ page.path }}"
+             class="rounded-md px-3 py-1.5 {% if active == page.path %}bg-indigo-50 font-medium text-indigo-700{% else %}text-slate-600 hover:bg-slate-100 hover:text-slate-900{% endif %}"
+             {% if active == page.path %}aria-current="page"{% endif %}>{{ page.label }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </nav>
+
+  {% if not settings.has_api_key %}
+  <div class="border-b border-amber-200 bg-amber-50">
+    <p class="mx-auto max-w-5xl px-4 py-2 text-sm text-amber-800">
+      No <code>ANTHROPIC_API_KEY</code> set — browsing works, but extraction is disabled. Add it to <code>.env</code>.
+    </p>
+  </div>
+  {% endif %}
+
+  <main class="mx-auto max-w-5xl px-4 py-8">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
