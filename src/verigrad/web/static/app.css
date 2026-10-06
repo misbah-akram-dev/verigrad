@@ -1,0 +1,4 @@
+/* App-specific styles. Tailwind (CDN) covers almost everything. */
+code {
+  font-size: 0.875em;
+}

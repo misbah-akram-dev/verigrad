@@ -13,9 +13,11 @@ Python 3.12 · `uv` · Anthropic SDK · Pydantic v2 · Playwright (Chromium) · 
 
 ## Commands
 - `make dev` — run the web app locally
-- `make test` — run unit tests
+- `make test` — run unit tests (no network; Anthropic client mocked)
+- `make test-live` — optional live smoke test (one real Claude call; skipped without a key)
 - `make eval` — run evals on the golden set (`python -m verigrad.evals`)
 - `make lint` — ruff check + format
+- Windows: install make with `winget install ezwinports.make`; recipes are plain `uv run …` lines.
 
 ## Architecture rules
 - All logic lives in `src/verigrad/core/`. Web routes stay thin.

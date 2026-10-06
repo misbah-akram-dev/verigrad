@@ -259,13 +259,16 @@ extractions  id, snapshot_id, field_path, value_json, source_quote, source, sour
 tasks        id, program_id, title, due_date_pkt, lead_time_days, done
 jobs         id, kind (fetch/extract/eval/recheck), program_id, status, progress, error,
              started_at, finished_at
-llm_calls    id, purpose, model, input_tokens, output_tokens, cost_usd, latency_ms,
-             request_id, created_at
+llm_calls    id, purpose (extract/eval/spider/label/smoke), model, input_tokens, output_tokens,
+             cache_creation_input_tokens, cache_read_input_tokens, cost_usd,
+             estimated_cost_usd, latency_ms, request_id, job_id, program_id, created_at
 eval_runs    id, started_at, model, prompt_version, accuracy, calibration_json, cost_usd,
              report_path
 ```
 - Re-extraction adds new rows; history is never overwritten (versioned by `model` + `prompt_version`).
 - `content_hash` lets re-checks skip unchanged pages.
+- The cost budget is scoped **per job** (one extraction/eval attempt), not per programme lifetime: the guard sums `llm_calls.cost_usd` by `job_id`, so repeated evals and re-extractions don't use up a programme's budget. `program_id` is kept for the Costs page (spend by programme). Calls with no `job_id` (e.g. smoke tests) skip the guard.
+- `estimated_cost_usd` (the pre-call estimate the guard used) is logged next to `cost_usd`, to measure estimate accuracy.
 
 ---
 
@@ -353,7 +356,7 @@ SAVED ──★track──► TARGETING ──submitted──► APPLIED ──�
 
 - Every Claude call logged to `llm_calls` (model, tokens, cost, latency, request ID, purpose).
 - Retries with exponential backoff on rate limits and 5xx; honour retry headers.
-- Per-programme budget guard (default $0.30, tune after first real runs); abort and flag if exceeded.
+- Per-job budget guard (`VERIGRAD_MAX_COST_PER_JOB`, default $0.30, tune after first real runs): a call is blocked if the job's spend so far + the call's estimate would exceed it; abort and flag the job if actual spend exceeds it.
 - **Costs** page: spend by purpose (extract / eval / spider) and by programme.
 - Every fetch outcome logged (success / blocked / manual import).
 
