@@ -11,23 +11,41 @@ URL ─► fetch ─► snapshot ─► extract (Claude) ─► verify (code) �
                    JSON, PDFs                                                 Plan, Dashboard
                                          │
                  evals ── run extract + verify on golden snapshots → accuracy, calibration, cost
-                 llm ──── wraps every Claude call: retries + cost/latency logging
+                 llm ──── wraps every Claude call: retries + cost/latency logging + per-job budget
 ```
 
-## Modules (`src/verigrad/core/`)
+## LLM call path (`core/llm/`)
+
+```text
+LLMClient.complete(purpose, messages, job_id?, program_id?, expected_output_tokens)
+  1. model must be in pricing.MODEL_PRICES          → else UnknownModelError (no $0 rows)
+  2. estimate = chars/4 input × in-price + expected_output_tokens × out-price
+  3. if job_id: guard.check_budget(job_spend(job_id), estimate, MAX_COST_PER_JOB)
+                                                     → else BudgetExceededError, no call made
+  4. retry.call_with_retry(sdk.messages.create)      429/408/409/5xx/connection → backoff,
+                                                     honours retry-after-ms / retry-after
+  5. pricing.compute_cost(usage) → llm_calls row (cost_usd, estimated_cost_usd, tokens,
+     latency_ms, request_id, job_id, program_id)
+  6. LLMResult(over_budget = job spend now > budget)
+```
+
+## Modules (`src/verigrad/`)
 | Module | Responsibility | Status |
 |---|---|---|
-| `llm/` | Claude client wrapper: retries, logging to `llm_calls`, `run_eval()` | Not started |
-| `store/` | SQLite models and repository | Not started |
-| `fetch/` | Snapshots, accordion expansion, block detection, manual import | Not started |
-| `extract/` | Prompts (versioned) + schema → structured extraction | Not started |
-| `verify/` | Checks 1–4 (v1), 5 (v2) → confidence | Not started |
-| `jobs/` | Background jobs + progress for the UI | Not started |
-| `plan/` | Backwards planning, timezones, `.ics` | Not started |
-| `spider/` | (v2) Selector generation/repair, re-checks | Not started |
+| `config.py` | Typed settings from `.env` (pydantic-settings); app runs without a key | Done (foundation) |
+| `core/llm/` | Claude wrapper: `pricing`, `guard`, `retry`, `client`; logging to `llm_calls` | Done (foundation) |
+| `core/store/` | SQLModel tables (spec §4.2), engine/`init_db`, repository | Done (foundation) |
+| `core/extract/` | `schema.py` (spec §4.1) done; prompts + extraction in step 4 | Schema done |
+| `core/fetch/` | Snapshots, accordion expansion, block detection, manual import | Not started |
+| `core/verify/` | Checks 1–4 (v1), 5 (v2) → confidence | Not started |
+| `core/jobs/` | Background jobs + progress for the UI | Not started |
+| `core/plan/` | Backwards planning, timezones, `.ics` | Not started |
+| `core/spider/` | (v2) Selector generation/repair, re-checks | Not started |
+| `evals/` | `python -m verigrad.evals` | Placeholder |
 
 ## Web (`src/verigrad/web/`)
-Pages: Add · Programme · Review · Tracker · Plan · Dashboard · Costs
+`app.py` (factory + lifespan → `init_db`), `routes.py` (thin), `templates/` (Jinja2 + Tailwind CDN + HTMX).
+Pages: Add · Programme · Review · Tracker · Plan · Dashboard · Costs (placeholders until their step).
 
 ## Key decisions
 | Date | Decision | Why |
@@ -36,3 +54,9 @@ Pages: Add · Programme · Review · Tracker · Plan · Dashboard · Costs
 | 2026-10-05 | Extraction runs on saved snapshots only | Repeatable evals, offline debugging, base for v2 spider |
 | 2026-10-05 | Confidence set by code checks, not the model | Verifiable; calibration is measurable |
 | 2026-10-05 | No proxies; blocked pages → manual upload | Tiny volume; polite fetching |
+| 2026-10-06 | Cost budget is **per job**: `llm_calls.job_id` (guard sums by it) + `program_id` (Costs page) + `estimated_cost_usd` | A per-programme lifetime budget would be used up by repeated evals/re-extractions; logging the estimate lets us measure guard accuracy |
+| 2026-10-06 | Our own retry layer; SDK built with `max_retries=0` and explicit timeout (`VERIGRAD_LLM_TIMEOUT_SECONDS`, 120 s) | One testable retry layer; retry by status code (SDK 1.x `OverloadedError` 529 is not an `InternalServerError`) |
+| 2026-10-06 | Unknown model → `UnknownModelError` | Never record a call as $0 |
+| 2026-10-06 | `ProposedEvidence[T]` (Claude output, no confidence) vs `Evidence[T]` (+ confidence, failed_checks) | Enforces "Claude proposes, code verifies" in the type system |
+| 2026-10-06 | Models: extract `claude-sonnet-5-5`, compare `claude-haiku-4-5`; price table Opus 5.5 / Sonnet 5.5 / Haiku 4.5 | Revisit after first eval run |
+| 2026-10-06 | `SQLModel.metadata.create_all`, no migrations tool | Local single-user DB; revisit if schema churn hurts |

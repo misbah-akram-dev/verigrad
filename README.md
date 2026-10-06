@@ -17,7 +17,7 @@ The core problem — reliable structured extraction from messy, inconsistent web
 ## Status
 | Milestone | Scope | Status |
 |---|---|---|
-| v1 | Extraction engine + web app + evals | Planned |
+| v1 | Extraction engine + web app + evals | In progress (step 1/8: foundation done) |
 | v2 | Change detection, self-verifying spider, injection defence, CI evals | Planned |
 | v3 | MCP server, form helper | Planned |
 
@@ -25,7 +25,26 @@ The core problem — reliable structured extraction from messy, inconsistent web
 _Eval numbers will be published here as milestones land._
 
 ## Getting started
-_Setup instructions will be added with the first runnable version._
+Requires [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 for you) and `make`
+(Windows: `winget install ezwinports.make`, then open a new terminal).
+
+```sh
+uv sync                    # install dependencies
+cp .env.example .env       # PowerShell: Copy-Item .env.example .env
+make dev                   # http://127.0.0.1:8000
+```
+
+The app starts without an API key; add `ANTHROPIC_API_KEY` to `.env` when you want Claude calls.
+
+| Command | What it does |
+|---|---|
+| `make dev` | Run the web app with auto-reload |
+| `make test` | Unit tests (no network, Anthropic client mocked) |
+| `make test-live` | One real Claude call (~$0.001); skipped without a key |
+| `make eval` | Evals on the golden set (placeholder until step 6) |
+| `make lint` | `ruff check --fix` + `ruff format` |
+
+Without `make`, run the same `uv run …` lines from the [Makefile](Makefile) directly.
 
 ## Docs
 - [Spec](spec.md)
