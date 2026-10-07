@@ -48,6 +48,8 @@ No toggle navigated away; no expansion stopped. Slowest pages: 40–60 s total (
 - Default extraction model + comparison model: provisionally `claude-sonnet-5-5` / `claude-haiku-4-5`; decide after first eval
 - Is the chars/4 + expected-output estimate good enough for the per-job guard? Measure once extraction runs.
 - Default `expected_output_tokens` (4000) and `VERIGRAD_MAX_COST_PER_JOB` ($0.30): tune after first real runs
+- **Step 4 — extraction input:** send `visible_text.txt` + PDFs to Claude, not `text.txt`? KFUPM's `text.txt` is ~120k chars (hidden menus) vs ~6.3k visible; accordions are already expanded, so visible text should hold the real content. Cheaper and safer against hidden-text injection; keep `text.txt` for verification checks. Decide and record in `docs/decisions.md` at step 4.
+- **Shared-page staleness:** re-fetching a shared admissions page updates only that source; other programmes keep the older reused snapshot. Acceptable for v1; v2 weekly re-check should refresh all sources sharing a URL.
 
 ## Blockers / setup notes
 - Local `.env`: rename `VERIGRAD_MAX_COST_PER_PROGRAM` → `VERIGRAD_MAX_COST_PER_JOB` (old name is ignored; default $0.30 applies). Optionally add `VERIGRAD_LLM_TIMEOUT_SECONDS=120`.
