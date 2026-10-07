@@ -27,7 +27,7 @@
 | Unit tests | 60 passing (no network) | 2026-10-06 |
 
 ## Open questions
-- ~~Golden-set programme list~~ Resolved: initial 4 in `docs/programs.md` (KAUST MS CS, EDISS Erasmus Mundus, KFUPM MS Data Science & Analytics, KSU MSc AI); target ~30 by step 6. Next step is still step 2.
+- ~~Golden-set programme list~~ Resolved: initial 3 in `docs/programs.md` (KAUST MS CS, EDISS Erasmus Mundus, KFUPM MS Data Science & Analytics), plus a Rejected section (KSU MSc AI, IU Madinah) kept as eligibility-restriction examples; target ~30 by step 6. Next step is still step 2.
 - ~~Scholarships: v1 or v2?~~ Resolved: v1, via `funding_options` (spec §4.1); see `docs/changelog.md` 2026-10-07.
 - Default extraction model + comparison model: provisionally `claude-sonnet-5-5` / `claude-haiku-4-5`; decide after first eval
 - Is the chars/4 + expected-output estimate good enough for the per-job guard? Measure once extraction runs.
@@ -39,5 +39,5 @@
 
 ## Where we left off
 Step 1 done: uv project (Python 3.12), Makefile, `core/llm/` wrapper (retries honouring retry headers, per-job cost guard, `llm_calls` logging with estimated vs actual cost), extraction schema, SQLModel tables, settings, FastAPI skeleton with nav + placeholder pages. Merged via `feat/foundation`.
-Docs-only update (`docs/funding-and-sources`): spec records multiple sources per programme (`program_sources`), extraction-never-filters rule, `funding_options` schema, and the user-profile + primary-deadline picker (spec §4.1, §4.2, §6.1, §7). `docs/programs.md` created with the first 4 golden-set programmes.
+Docs-only update (`docs/funding-and-sources`): spec records multiple sources per programme (`program_sources`), extraction-never-filters rule, `funding_options` + `eligibility_restrictions` schema, and the user-profile + primary-deadline picker with "not eligible" flagging (spec §4.1, §4.2, §6.1, §7). `docs/programs.md` created with the first 3 golden-set programmes plus a Rejected section.
 Next: step 2 — Playwright fetch + snapshot folder + `program_sources` + Add page with background job and progress; then snapshot ~30 real programme pages.

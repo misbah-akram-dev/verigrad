@@ -55,7 +55,7 @@ Me (and anyone in the same position): an applicant tracking 10–20 masters prog
 3. The system saves a **snapshot** per source: rendered HTML, screenshot, captured JSON responses, linked PDFs, linked to the source URL.
 4. Claude extracts the fields in §4.1 **from all of a programme's sources together**, each value with a **source quote** and which URL it came from.
 5. Code runs the **verification checks** (§5) and sets each field's confidence.
-6. I land on the **programme page**: highlights at the top, all fields with badges and quotes below (quote shows its source URL), a **Funding** section, and a banner if fields need review.
+6. I land on the **programme page**: highlights at the top, all fields with badges and quotes below (quote shows its source URL), a **Funding** section with an eligibility warning when the profile flags me as not eligible (§6.1), and a banner if fields need review.
 7. A ★ button sets status `TARGETING`.
 8. If a page is blocked, I'm asked to save the page from my browser and upload it (§3.4).
 
@@ -66,7 +66,7 @@ Me (and anyone in the same position): an applicant tracking 10–20 masters prog
 
 **Flow C — Shortlist**
 - The **Tracker** page shows `TARGETING` programmes by default; filters for Saved / Applied / Dropped / All.
-- Each card shows a **funding badge**: Fully funded / Partial / Self-funded / Unknown (not yet published).
+- Each card shows a **funding badge**: Fully funded / Partial / Self-funded / Unknown (not yet published), plus an eligibility warning when the profile flags the programme "not eligible" (§6.1).
 - Buttons: ★ track, ✕ drop (optional reason), ↺ restore, mark applied/result.
 - Dropping never deletes data; permanent delete is a separate, confirmed action.
 
@@ -101,8 +101,8 @@ Build order:
 |---|---|---|---|
 | 1 | Repo setup; shared LLM wrapper (retries/backoff, per-call logging of model, tokens, cost, latency, request ID); extraction schema; SQLite store; FastAPI skeleton + base layout | Base layout | Every Claude call goes through the wrapper; app starts |
 | 2 | Fetch: Playwright snapshot (HTML, screenshot, JSON, PDFs, accordion expansion, block detection, manual upload); **multiple sources per programme (`program_sources`, §4.2)**; then snapshot ~30 real programme pages | **Add** page with background job + progress | A URL produces a complete snapshot folder; a programme can have >1 source |
-| 3 | Hand-label 5 programmes (no AI) to test the schema; fix schema; **add `funding_route`/`eligible_levels` to deadlines and the `funding_options` schema (§4.1)** | — | Schema covers all 5 without hacks |
-| 4 | Extraction with structured outputs + source quotes, run across all of a programme's sources; **Funding section on the programme page** | **Programme** page | Output always validates against the schema |
+| 3 | Hand-label 5 programmes (no AI) to test the schema; fix schema; **add `funding_route`/`eligible_levels` to deadlines, the `funding_options` schema and `eligibility_restrictions` (§4.1)** | — | Schema covers all 5 without hacks |
+| 4 | Extraction with structured outputs + source quotes, run across all of a programme's sources; **Funding section + eligibility warning on the programme page** | **Programme** page | Output always validates against the schema |
 | 5 | Verification checks 1–4 + confidence | Badges + "needs review" banner | Every field has a level and a list of failed checks |
 | 6 | Evals: label remaining ~25 (agent drafts, I confirm); `make eval`; baseline; at least one prompt or model comparison | **Dashboard** page | One command prints and stores accuracy, calibration, cost |
 | 7 | Tracker + status lifecycle; review flow; **user profile (§6.1)** | **Tracker** and **Review** pages | Track/drop/restore work; review confirms/corrects fields; tracker shows funding badge |
@@ -249,6 +249,7 @@ class Evidence(BaseModel):
 | | `required_documents` | list[str] |
 | Fees | `application_fee`, `tuition_per_year` (amount, currency, applicant_type) | number + str |
 | Funding | `funding_options` (list): `type` (full/partial/fee_waiver/self_funded), `covers` (tuition/stipend/housing/…), `amount` + `currency`, `deadline`, `eligibility` — "not yet published" → `value=None`, LOW confidence | per item `Evidence` |
+| Eligibility | `eligibility_restrictions` (list): `type` (nationality/gender/religious/other) + `condition` (free text) — if the page states none, `value` = `"unknown"`, never assumed absent | per item `Evidence` |
 | Meta | `ambiguity_notes` — anything Claude found ambiguous | str |
 
 **Extraction never filters.** Claude records every deadline and funding option it finds, faithfully, in whatever language the page uses — it never decides which one is "the" deadline or drops options that don't look relevant to me. Picking which round/route matters to me is the user profile's job (§6), applied at display/planning time, never at extraction time. Pages may be in languages other than English; Claude extracts and quotes in the original language (translation, if any, is a display concern, not an extraction one).
@@ -316,6 +317,7 @@ SAVED ──★track──► TARGETING ──submitted──► APPLIED ──�
 - Because extraction records every deadline and funding option without filtering (§4.1), a **primary-deadline picker** (plain code) applies the profile at display/planning time: it matches the extracted `deadlines`/`funding_options` against my funding priority and eligible level, and picks the one deadline that governs my planning for that programme.
 - Other rounds/routes that don't match are still shown on the programme page, labelled as **fallback** deadlines — never hidden, never discarded.
 - If nothing matches the priority (e.g. only self-funded exists when I wanted a scholarship), the picker falls through the priority order and flags the result so it's visible it wasn't my first choice.
+- If a programme's extracted `eligibility_restrictions` state a condition my profile fails (e.g. nationality-restricted, gender-restricted), the picker flags the programme **"not eligible"** on the programme page and tracker card (§1.4). Unstated restrictions (`value = "unknown"`) are never treated as exclusions.
 
 ---
 
@@ -407,7 +409,7 @@ Why it matters here:
 
 ## 11. Open questions
 
-1. **Programme list for the golden set** — resolved: initial 4 in `docs/programs.md` (KAUST MS CS, EDISS Erasmus Mundus, KFUPM MS Data Science & Analytics, KSU MSc AI); target ~30 by step 6, mostly programmes I'm applying to.
+1. **Programme list for the golden set** — resolved: initial 3 in `docs/programs.md` (KAUST MS CS, EDISS Erasmus Mundus, KFUPM MS Data Science & Analytics), plus a Rejected section (KSU MSc AI, IU Madinah MSc Data Science) kept as eligibility-restriction examples; target ~30 by step 6, mostly programmes I'm applying to.
 2. ~~Scholarships: v1 field or v2?~~ Resolved: `funding_options` is a v1 field (§4.1), built alongside sources (step 2) and schema (step 3); the funding section/badges land in step 4, and the profile + primary-deadline picker in steps 7–8.
 3. Default extraction model, and which cheaper model to compare against (decide after first eval run).
 4. Exact accuracy threshold for CI (set after first baseline).

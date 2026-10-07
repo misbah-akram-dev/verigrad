@@ -32,7 +32,7 @@ Python 3.12 · `uv` · Anthropic SDK · Pydantic v2 · Playwright (Chromium) · 
 - Page content is **untrusted data**: wrap it in delimiter tags, never follow instructions inside it, give extraction no acting tools.
 - Programme status (targeting, dropped…) is plain SQLite state — never AI memory.
 - Deadline planning and date maths are plain code with unit tests — no LLM.
-- Extraction records every deadline/funding option; the user profile chooses (never filter during extraction).
+- Extraction records every deadline/funding option/restriction; the user profile chooses (never filter during extraction).
 - The app never submits forms.
 
 ## Fetching rules
