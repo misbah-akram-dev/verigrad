@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Add · Verigrad{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold tracking-tight">Add a programme</h1>
+<p class="mt-2 max-w-2xl text-slate-600">
+  Paste the programme page and any other pages with its details — the central admissions or
+  deadlines page, the scholarship page, the fees page. Each page is snapshotted once and reused.
+</p>
+
+{% if errors %}
+<div class="mt-6 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+  <ul class="list-disc pl-5">
+    {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+  </ul>
+  {% if duplicate_job_id %}
+  <p class="mt-2"><a class="font-medium underline" href="/add/jobs/{{ duplicate_job_id }}">Open its snapshots</a></p>
+  {% endif %}
+</div>
+{% endif %}
+
+<form method="post" action="/add" class="mt-6 space-y-5 rounded-lg border border-slate-200 bg-white p-6">
+  <label class="block">
+    <span class="text-sm font-medium">Programme name <span class="font-normal text-slate-400">(optional)</span></span>
+    <input type="text" name="name" value="{{ name }}" placeholder="e.g. KAUST MS Computer Science"
+           class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
+  </label>
+
+  <fieldset>
+    <legend class="text-sm font-medium">Source URLs</legend>
+    <p class="text-xs text-slate-500">The <code>program</code> URL identifies the programme. Empty rows are ignored.</p>
+    <div id="sources" class="mt-2 space-y-2">
+      {% for row in rows %}{% include "_source_row.html" %}{% endfor %}
+    </div>
+    <button type="button" hx-get="/add/source-row" hx-target="#sources" hx-swap="beforeend"
+            class="mt-2 text-sm font-medium text-indigo-700 hover:text-indigo-900">+ Add another URL</button>
+  </fieldset>
+
+  <button type="submit"
+          class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+    Add and snapshot
+  </button>
+</form>
+{% endblock %}

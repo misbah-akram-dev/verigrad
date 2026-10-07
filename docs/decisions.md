@@ -26,6 +26,34 @@
 
 ## 2. Getting and reading pages
 
+### D21 — Fetch jobs run on their own thread and event loop (2026-10-07)
+**Decision:** A single worker thread runs every background job in its own `asyncio.Runner`, with a ProactorEventLoop on Windows, using Playwright's async API. Playwright never runs on FastAPI's event loop.
+**Why:** With `--reload` (`make dev`), uvicorn runs FastAPI on a SelectorEventLoop on Windows, which can't start Playwright's driver subprocess. Owning the loop works whatever uvicorn picks. One worker also runs jobs one at a time, which suits polite fetching. Rejected: the sync API in a thread (works today, but depends on the default loop policy) and running Playwright in FastAPI's loop (breaks on Windows).
+
+### D22 — Fetch once per URL; shared pages are reused; re-fetch is explicit (2026-10-07)
+**Decision:** If a URL already has a SUCCESS or MANUAL_IMPORT snapshot, any other source with that URL gets a row pointing at the same folder — no new request. Only a `program`-role URL identifies a duplicate programme; admissions, scholarship and fees pages may be shared (e.g. KAUST's central admission-timelines page). A per-source **Re-fetch** takes a new snapshot and keeps the old one.
+**Why:** D8's "fetch once and reuse", applied to how universities actually publish: several programmes point at the same central page. Reused rows are not counted as fetch attempts, so the success rate stays honest.
+
+### D23 — robots.txt by RFC 9309; disallow means BLOCKED (2026-10-07)
+**Decision:** 2xx → apply the rules; 4xx → no rules; 5xx → disallow everything; a disallowed page is `BLOCKED` (`robots_disallowed`), so the upload box appears. A network-level failure fetching robots.txt (DNS, refused) does not count as a disallow: the page fetch then fails with its real reason. `Crawl-delay` is honoured when longer than our delay. The delay is per university domain, not per host.
+**Why:** Respecting robots.txt is part of being polite (D8), and "blocked → ask the user" already has a path. Treating an unreachable robots.txt as "disallow" would ask the user to upload a copy of a mistyped URL. Per-domain delay: `cs.kaust.edu.sa` and `admissions.kaust.edu.sa` are the same university's servers.
+
+### D24 — Same-site JSON and PDFs only; skipped links recorded (2026-10-07)
+**Decision:** JSON responses and linked PDFs are saved only from the page's parent domain (`ms.kfupm.edu.sa` ~ `www.kfupm.edu.sa`), with caps (50 × 2 MB JSON, 10 × 20 MB PDFs). Everything skipped is listed in `meta.json` with a reason (`off_site`, `cap`, `too_large`, `robots_*`, …).
+**Why:** Third-party JSON is analytics and chat widgets, not programme data. Off-site PDFs (e.g. EDISS partner universities) are skipped for now; if one matters, it can be added as an extra source URL, since sources may be on any domain.
+
+### D25 — Manual HTML imports are rendered offline (2026-10-07)
+**Decision:** An uploaded HTML page is rendered in Chromium with JavaScript off and every network request aborted, producing `visible_text.txt` and a screenshot like a fetched page.
+**Why:** Keeps uploads on the same footing as fetched pages, so the v2 hidden-text check also works on them. Offline + no JS means an uploaded page can't call out or run code. Trade-off: without its external CSS, some styled-hidden text may count as visible.
+
+### D26 — Snapshot HTML is never rendered on our origin (2026-10-07)
+**Decision:** The file route serves only files inside the snapshot's own folder (resolved-path check), and serves saved HTML as `text/plain` with `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`.
+**Why:** Saved pages are untrusted (D12). Rendering them on the app's origin would let a page's scripts act against the app.
+
+### D27 — Optional installed browser channel (2026-10-07)
+**Decision:** `VERIGRAD_BROWSER_CHANNEL` (empty by default) can point Playwright at an installed Edge or Chrome instead of the bundled Chromium.
+**Why:** On some networks `playwright install chromium` can't download the browser. Edge ships with Windows and behaves the same for our purposes; the default stays the bundled Chromium (D8).
+
 ### D5 — Tool roles: Playwright fetches, Claude API extracts, web search only discovers (2026-10-07)
 | Stage | Tool | Role |
 |---|---|---|

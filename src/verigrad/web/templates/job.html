@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Snapshots · Verigrad{% endblock %}
+{% block content %}
+<a href="/add" class="text-sm text-indigo-700 hover:text-indigo-900">&larr; Add another programme</a>
+<h1 class="mt-2 text-2xl font-semibold tracking-tight">
+  {{ job.program_name or ("Programme #" ~ job.program_id) }}
+</h1>
+<p class="mt-1 text-sm text-slate-500">Saved. Snapshots are taken one page at a time, politely spaced.</p>
+{% if upload_error %}
+<div class="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800" role="alert">
+  Upload refused: {{ upload_error }}
+</div>
+{% endif %}
+<div class="mt-6">{% include "_job_panel.html" %}</div>
+{% endblock %}

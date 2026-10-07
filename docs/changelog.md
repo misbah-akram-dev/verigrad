@@ -2,6 +2,17 @@
 
 All notable changes, newest first.
 
+## 2026-10-07 — v1 step 2: fetch, snapshots, Add page (`feat/fetch`)
+- Dependencies: `playwright`, `selectolax`, `python-multipart`. One-time browser install: `uv run playwright install chromium`.
+- `program_sources` table (role-tagged URLs per programme); snapshots link to a source and gain `outcome_reason`, `url`, `final_url`, `http_status`, `snapshot_dir`, `visible_text_path`, `meta_path`, `reused_from_snapshot_id`.
+- `core/fetch/`: Playwright snapshot of one source → `page.html`, `text.txt`, `visible_text.txt`, full screenshot, same-site JSON and PDFs (capped), `meta.json`. Settle wait, cookie-banner dismissal, `<details>` + `aria-expanded` toggle expansion with a navigation guard. robots.txt (RFC 9309), per-domain delay, outcome rules (SUCCESS / BLOCKED / FAILED / MANUAL_IMPORT). Evidence kept for blocked and failed attempts.
+- Fetch once, reuse: a URL with a SUCCESS or MANUAL_IMPORT snapshot is reused by any programme (no new request); a per-source **Re-fetch** takes a new snapshot and keeps history.
+- Manual import of a saved HTML page or PDF for blocked/failed sources; HTML rendered offline (JS off, network blocked) for visible text + screenshot.
+- `core/jobs/`: background job runner on one worker thread with its own event loop (Proactor on Windows); job progress per source in `jobs.progress`; interrupted jobs marked failed on startup.
+- Web: **Add** page (name + URLs with roles, "+ Add another URL" via HTMX), job page with a panel that polls every second, screenshot thumbnail, file links, Re-fetch and upload. Snapshot files served only from their folder; saved HTML served as `text/plain` with a sandbox CSP.
+- Optional `VERIGRAD_BROWSER_CHANNEL` (`msedge`/`chrome`) to use an installed browser when the Chromium download is blocked.
+- Tests: 144, of which 21 drive a real browser against a local fixture site on 127.0.0.1 (marked `browser`, part of `make test`, skipped with an install hint if no browser). First real run: 8/8 sources saved (fetch success rate 100%).
+
 ## 2026-10-07 — docs: eligibility restrictions + golden-set fix (`docs/funding-and-sources`)
 - Added the missing `eligibility_restrictions: list[Evidence[Restriction]]` field (type nationality/gender/religious/other + condition; unstated → `"unknown"`, never assumed absent) to spec §4.1.
 - §6.1: the primary-deadline picker now flags a programme **"not eligible"** when a stated restriction excludes the profile; surfaced on the programme page and tracker card (spec §1.4).

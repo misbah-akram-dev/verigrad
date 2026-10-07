@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Deadlines (loaded by script)</title></head>
+<body>
+  <h1>Application deadlines</h1>
+  <p>The deadlines below are loaded from our admissions system and update automatically each
+     intake. Please check back regularly; times are given in the university's local timezone.</p>
+  <ul id="rounds"></ul>
+  <script>
+    fetch('/api/deadlines.json')
+      .then(r => r.json())
+      .then(data => {
+        const list = document.getElementById('rounds');
+        for (const round of data.rounds) {
+          const li = document.createElement('li');
+          li.textContent = round.name + ': ' + round.deadline;
+          list.appendChild(li);
+        }
+      });
+    // A third-party request (different site key): must not be saved.
+    fetch('http://localhost:' + location.port + '/api/tracking.json').catch(() => {});
+  </script>
+</body>
+</html>

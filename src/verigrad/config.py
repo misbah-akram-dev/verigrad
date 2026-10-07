@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     fetch_timeout_seconds: float = Field(
         default=45.0, gt=0, validation_alias=AliasChoices("VERIGRAD_FETCH_TIMEOUT_SECONDS")
     )
+    # Empty = Playwright's bundled Chromium. "msedge"/"chrome" = an installed browser, for
+    # machines where `playwright install chromium` can't download.
+    browser_channel: str = Field(
+        default="", validation_alias=AliasChoices("VERIGRAD_BROWSER_CHANNEL")
+    )
     timezone: str = Field(
         default="Asia/Karachi", validation_alias=AliasChoices("VERIGRAD_TIMEZONE")
     )

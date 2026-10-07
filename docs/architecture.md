@@ -29,23 +29,39 @@ LLMClient.complete(purpose, messages, job_id?, program_id?, expected_output_toke
   6. LLMResult(over_budget = job spend now > budget)
 ```
 
+## Fetch path (`core/fetch/`, `core/jobs/`)
+
+```text
+Add page ─► actions.add_programme ─► programs + program_sources + jobs row
+                                   └► JobRunner.submit (1 worker thread, own event loop;
+                                       Proactor on Windows — never FastAPI's loop)
+service.run_fetch_job (per source, one browser per job):
+  1. URL already has a SUCCESS/MANUAL_IMPORT snapshot? → reuse row (same folder), no request
+  2. Politeness: robots.txt (RFC 9309, cached per origin) → per-domain delay (shared throttle)
+  3. snapshot.snapshot_source: goto → prepare (settle, cookies, <details>/aria toggles,
+     navigation guard) → page.html, text.txt, visible_text.txt, screenshot, json/, pdfs/
+  4. blocking.classify → SUCCESS / BLOCKED / FAILED (+ reason) → meta.json + snapshots row
+  5. jobs.progress (per-source state) ◄── panel polls /add/jobs/{id}/panel every 1 s
+Blocked/failed source ─► upload ─► manual_import (offline render) ─► MANUAL_IMPORT snapshot
+```
+
 ## Modules (`src/verigrad/`)
 | Module | Responsibility | Status |
 |---|---|---|
 | `config.py` | Typed settings from `.env` (pydantic-settings); app runs without a key | Done (foundation) |
 | `core/llm/` | Claude wrapper: `pricing`, `guard`, `retry`, `client`; logging to `llm_calls` | Done (foundation) |
-| `core/store/` | SQLModel tables (spec §4.2), engine/`init_db`, repository | Done (foundation) |
+| `core/store/` | SQLModel tables (spec §4.2) incl. `program_sources`, engine/`init_db`, repository (sources, snapshots, reuse, jobs, `fetch_stats`) | Done (steps 1–2) |
 | `core/extract/` | `schema.py` (spec §4.1) done; prompts + extraction in step 4 | Schema done |
-| `core/fetch/` | Snapshots, accordion expansion, block detection, manual import | Not started |
+| `core/fetch/` | `text` (selectolax), `polite` (robots, per-domain throttle, site rule), `blocking` (outcome rules), `prepare` (settle, cookies, accordions), `snapshot` (Playwright capture), `service` (fetch job), `manual_import`, `actions` (what web routes call) | Done (step 2) |
 | `core/verify/` | Checks 1–4 (v1), 5 (v2) → confidence | Not started |
-| `core/jobs/` | Background jobs + progress for the UI | Not started |
+| `core/jobs/` | `JobRunner` (worker thread + own event loop), per-source progress model | Done (step 2) |
 | `core/plan/` | Backwards planning, timezones, `.ics` | Not started |
 | `core/spider/` | (v2) Selector generation/repair, re-checks | Not started |
 | `evals/` | `python -m verigrad.evals` | Placeholder |
 
 ## Web (`src/verigrad/web/`)
-`app.py` (factory + lifespan → `init_db`), `routes.py` (thin), `templates/` (Jinja2 + Tailwind CDN + HTMX).
-Pages: Add · Programme · Review · Tracker · Plan · Dashboard · Costs (placeholders until their step).
+`app.py` (factory + lifespan → `init_db`, `JobRunner`, interrupted jobs → failed), `routes.py` (home + placeholders), `fetch_routes.py` (Add, job panel, re-fetch, import, snapshot files), `templates/` (Jinja2 + Tailwind CDN + HTMX).
+Pages: **Add** (built) · Programme · Review · Tracker · Plan · Dashboard · Costs (placeholders until their step).
 
 ## Key decisions
 | Date | Decision | Why |
@@ -63,4 +79,10 @@ Pages: Add · Programme · Review · Tracker · Plan · Dashboard · Costs (plac
 | 2026-10-07 | Programmes can have several `program_sources` (program/admissions/scholarship/fees); snapshots link to a source, extraction runs over all of a programme's sources together | Deadlines and funding often live on separate pages from the main programme page (spec §4.2, `docs/programs.md`) |
 | 2026-10-07 | Extraction records every deadline/funding option with no filtering; `deadlines` gain `funding_route`/`eligible_levels`, new `funding_options: list[Evidence[FundingOption]]` | Filtering during extraction would silently drop real options; the user profile picks later (spec §4.1, §6.1) |
 | 2026-10-07 | User profile (applicant type, degree level, funding priority) is plain SQLite state; a primary-deadline picker (plain code) applies it, other rounds shown as fallback | Keeps profile-driven picking out of AI memory and testable like the rest of planning (spec §6.1) |
+| 2026-10-07 | Fetch jobs run on one worker thread with their own `asyncio.Runner` (ProactorEventLoop on Windows) | uvicorn `--reload` uses a SelectorEventLoop on Windows, which can't start Playwright; one worker also serialises fetches (`docs/decisions.md` D21) |
+| 2026-10-07 | Fetch once per URL; shared admissions/scholarship URLs reuse the existing snapshot; Re-fetch is explicit | Polite fetching (D8); several programmes share central pages (D22) |
+| 2026-10-07 | robots.txt per RFC 9309; disallow → BLOCKED (upload offered); network failure → page fetch reports the real error | Polite, and never asks for an upload of a mistyped URL (D23) |
+| 2026-10-07 | JSON and PDFs captured from the same parent domain only; skipped links listed in `meta.json` | Skips analytics/third-party noise; visible record of what was left out (D24) |
+| 2026-10-07 | Manual HTML imports rendered offline (JS off, network blocked); snapshot HTML served as `text/plain` + sandbox CSP | Keeps visible-text/hidden-text check working for uploads; untrusted HTML never renders on our origin (D25, D26) |
+| 2026-10-07 | Optional `VERIGRAD_BROWSER_CHANNEL` (msedge/chrome); default bundled Chromium | Fallback when the Chromium download is blocked (D27) |
 | 2026-10-07 | New `eligibility_restrictions: list[Evidence[Restriction]]` (nationality/gender/religious/other); unstated → `"unknown"`, never assumed absent; the picker flags a programme "not eligible" when a restriction excludes my profile | Real programmes exist with nationality- or gender-based restrictions that exclude the user outright; must surface this instead of silently tracking an inapplicable programme (spec §4.1, §6.1, `docs/programs.md`) |

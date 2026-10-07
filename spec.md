@@ -209,13 +209,14 @@ verigrad/
 ```
 
 ### 3.4 Fetching policy and blocked pages
-- University sites are lightly protected and volume is tiny (~30 pages once, then weekly re-checks of targeted programmes), so a real Chromium browser from a home IP is enough.
-- **Polite fetching:** fetch each page once and reuse the snapshot; space out requests; respect `robots.txt`; re-check only `TARGETING`/`APPLIED` programmes.
-- Before the snapshot: accept/close cookie banners where possible and **expand accordions/collapsed sections** so legitimate content is visible.
-- **Block detection:** challenge pages (e.g. Cloudflare), login walls, empty or near-empty content → the job ends with status `BLOCKED`.
-- **Manual import:** for a blocked page, the app asks me to save the page from my own browser (HTML or print-to-PDF) and upload it; it becomes a normal snapshot.
+- University sites are lightly protected and volume is tiny (~30 pages once, then weekly re-checks of targeted programmes), so a real Chromium browser from a home IP is enough. Playwright's bundled Chromium with default settings (headless, default user agent, no stealth); `VERIGRAD_BROWSER_CHANNEL=msedge|chrome` uses an installed browser if the bundled one can't be downloaded.
+- **Polite fetching:** fetch each URL once and reuse the snapshot (a URL shared by several programmes, e.g. a central admissions page, is fetched once); space out requests per university domain (`VERIGRAD_FETCH_DELAY_SECONDS`, or a longer `Crawl-delay`); respect `robots.txt` (RFC 9309: 4xx → no rules, 5xx → disallow all; a network failure lets the page fetch report the real error); re-check only `TARGETING`/`APPLIED` programmes. A manual **Re-fetch** per source takes a new snapshot and keeps the old one.
+- Before the snapshot: wait for the network to settle (capped), accept cookie banners inside cookie/consent containers, and **expand accordions**: open every `<details>` and click `aria-expanded="false"` toggles only (never generic `role=button`, real links, or anything in `nav`/`header`). If a click navigates away, go back, record it in `meta.json` and retry once without that toggle.
+- **Snapshot folder** `data/snapshots/<program_id>/<source_id>/<UTC timestamp>/`: `page.html` (rendered DOM), `text.txt` (whole-page text, hidden text included), `visible_text.txt` (`innerText`: what a person sees), `screenshot.png` (full page), `json/` (same-site JSON responses, ≤50 × 2 MB), `pdfs/` (same-site linked PDFs, ≤10 × 20 MB; robots + delay apply), `meta.json` (URLs, status, timings, outcome + reason, content hash, counts, preparation stats, skipped files with reasons). "Same site" = same parent domain (`cs.kaust.edu.sa` ~ `admissions.kaust.edu.sa`).
+- **Outcomes:** `SUCCESS`; `BLOCKED` for HTTP 403/429/503, challenge pages, login walls, near-empty pages (<200 visible chars) and robots.txt disallow; `FAILED` for other HTTP errors, timeouts and network errors; `MANUAL_IMPORT` for uploads. Blocked and failed attempts keep their evidence (`meta.json`, HTML, screenshot when available).
+- **Manual import:** for a blocked or failed source, the app asks me to save the page from my own browser (HTML or print-to-PDF, ≤25 MB) and upload it; it becomes a normal snapshot with `imported_manually = true`. HTML is rendered offline (JavaScript off, all network requests aborted) to produce `visible_text.txt` and a screenshot.
 - **No proxies or anti-bot evasion.** A blocked page means "ask the user", not "work around it".
-- Every fetch outcome is logged → **fetch success rate** is a reported number.
+- Every fetch outcome is logged and stored → **fetch success rate** = SUCCESS ÷ automatic attempts (manual imports and reused snapshots excluded) is a reported number.
 
 ---
 
@@ -258,8 +259,10 @@ class Evidence(BaseModel):
 ```text
 programs     id, url, name, university, status, status_changed_at, drop_reason, created_at
 program_sources id, program_id, url, role (program/admissions/scholarship/fees/…), added_at
-snapshots    id, program_id, source_id, fetched_at, fetch_outcome, html_path, text_path, screenshot_path,
-             json_paths, pdf_paths, visibility_map_path, content_hash, imported_manually
+snapshots    id, program_id, source_id, fetched_at, fetch_outcome, outcome_reason, url, final_url,
+             http_status, snapshot_dir, html_path, text_path, visible_text_path, screenshot_path,
+             meta_path, json_paths, pdf_paths, visibility_map_path, content_hash,
+             imported_manually, reused_from_snapshot_id
 extractions  id, snapshot_id, field_path, value_json, source_quote, source, source_ref,
              confidence, failed_checks, user_confirmed, model, prompt_version, created_at
 tasks        id, program_id, title, due_date_pkt, lead_time_days, done
@@ -273,7 +276,8 @@ eval_runs    id, started_at, model, prompt_version, accuracy, calibration_json, 
 ```
 - Re-extraction adds new rows; history is never overwritten (versioned by `model` + `prompt_version`).
 - `content_hash` lets re-checks skip unchanged pages.
-- A programme has **one or more `program_sources`** (programme page, central admissions/deadlines page, scholarship page, fees page, …), each with a `role`. Every snapshot belongs to exactly one source (`snapshots.source_id`); extraction runs over all of a programme's current snapshots together, and each `extractions.source_quote` is traceable back to its URL via `snapshot_id → source_id → url`. `programs.url` remains the primary/first-added source for backward compatibility with existing rows, but new sources go in `program_sources`.
+- A programme has **one or more `program_sources`** (programme page, central admissions/deadlines page, scholarship page, fees page, …), each with a `role`. Every snapshot belongs to exactly one source (`snapshots.source_id`); extraction runs over all of a programme's current snapshots together, and each `extractions.source_quote` is traceable back to its URL via `snapshot_id → source_id → url`. `programs.url` is the `program`-role URL (or the first URL); only a `program`-role URL identifies a duplicate programme, while admissions/scholarship/fees URLs may be shared between programmes.
+- `snapshots.snapshot_dir` is relative to the data dir; file paths are relative to `snapshot_dir`. A reused snapshot (shared URL) is a new row for the new source pointing at the original folder, with `reused_from_snapshot_id` set; it is not a fetch attempt.
 - The cost budget is scoped **per job** (one extraction/eval attempt), not per programme lifetime: the guard sums `llm_calls.cost_usd` by `job_id`, so repeated evals and re-extractions don't use up a programme's budget. `program_id` is kept for the Costs page (spend by programme). Calls with no `job_id` (e.g. smoke tests) skip the guard.
 - `estimated_cost_usd` (the pre-call estimate the guard used) is logged next to `cost_usd`, to measure estimate accuracy.
 

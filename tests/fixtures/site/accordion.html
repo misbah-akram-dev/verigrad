@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Admissions — Example University</title>
+<script>
+  function toggle(button) {
+    button.setAttribute('aria-expanded', 'true');
+    document.getElementById(button.getAttribute('aria-controls')).hidden = false;
+  }
+</script>
+</head>
+<body>
+  <header>
+    <button aria-expanded="false" onclick="location.href='/menu.html'">Menu</button>
+  </header>
+  <main>
+    <h1>Admissions</h1>
+    <p>Everything you need to know about applying to our masters programmes this year,
+       including deadlines, language requirements and tuition fees for every applicant type.</p>
+
+    <details><summary>Deadlines</summary>
+      <p>DETAILS_SECRET Fall Round 2 closes on 15 January 2027 for MS applicants.</p>
+    </details>
+
+    <button aria-expanded="false" aria-controls="p1" onclick="toggle(this)">Requirements</button>
+    <div id="p1" hidden>TOGGLE_ONE IELTS 6.5 overall is required.</div>
+
+    <span role="button" aria-expanded="false" onclick="location.href='/away.html'">Apply now</span>
+
+    <div role="button" onclick="location.href='/away2.html'">Generic role button</div>
+
+    <button aria-expanded="false" aria-controls="p2" onclick="toggle(this)">Fees</button>
+    <div id="p2" hidden>TOGGLE_TWO Tuition is waived for scholarship holders.</div>
+  </main>
+</body>
+</html>
