@@ -7,15 +7,15 @@
 
 ## 0. Why this project exists
 
-This is my portfolio project for the team's AI-upskilling programme. It has three goals, and every decision in this spec should serve at least one of them:
+This is my AI-engineering portfolio project. It has three goals, and every decision in this spec should serve at least one of them:
 
-1. **Learn** — put the roadmap topics into real practice (Claude API, structured outputs, tool use, agents, evals, cost, safety).
+1. **Learn** — put core AI-engineering skills into real practice (Claude API, structured outputs, tool use, agents, evals, cost, safety).
 2. **Demo** — ship clear v1 → v2 → v3 milestones, each showing new, *measured* capability.
-3. **Get selected by a new team** — show I can build production-grade AI systems: verified outputs, evals, cost tracking, failure handling.
+3. **Show production-grade AI engineering** — verified outputs, evals, cost tracking, failure handling.
 
 It is also a real tool: **I am applying for masters programmes and will use it myself.**
 
-**The one rule (from the team's topic bank):** every feature must produce a number — accuracy, cost, or latency on a fixed test set. No "it seems better."
+**The one rule:** every feature must produce a number — accuracy, cost, or latency on a fixed test set. No "it seems better."
 
 **Pitch:** *"I built reliable AI extraction from messy web pages and PDFs, with source evidence, verified confidence, and evals — applied to my own masters applications."* The same problem as enterprise document ingestion.
 
@@ -91,7 +91,7 @@ Me (and anyone in the same position): an applicant tracking 10–20 masters prog
 
 ## 2. Milestones
 
-Timeline: ~4 weeks, solo, alongside work and the roadmap courses. Each module's web page is built **together with** the module, not at the end.
+Timeline: ~4 weeks, solo, alongside work and other learning. Each module's web page is built **together with** the module, not at the end.
 
 ### v1 — Extraction engine + web app (weeks 1–2, may run into early week 3)
 
@@ -131,15 +131,15 @@ Build order:
 | AI memory for preferences (countries, budget, test constraints), used by fit check and discovery | — |
 | *(If time)* SOP helper, recommender tracker | — |
 
-### Roadmap topic coverage
-| Topic (topic bank #) | Where |
+### Skills coverage
+| Skill area | Where |
 |---|---|
-| Messages API (1), prompting (2), structured outputs (3), streaming (4), token/cost (5) | v1 extraction, wrapper, progress UI |
-| Documents/PDFs (6), vision (7), citations (8) | v1 snapshots, v2 visibility check |
-| Tool use (10), server-side tools (11), MCP (13) | v2 spider agent, v2 discovery, v3 MCP server |
-| Agent loops (15), memory (16) | v2 spider agent, v3 preferences |
-| Evals (20), cost & latency (21), reliability (22), security (23), observability (24) | v1 evals + wrapper + dashboard, v2 CI / caching / injection |
-| Ingestion supplement: OCR/layout (S1), per-field confidence (S2), review queue (S3), reprocessing (S4), drift (S5) | v1 confidence + review, v2 re-check + drift |
+| Messages API, prompting, structured outputs, streaming, token/cost | v1 extraction, wrapper, progress UI |
+| Documents/PDFs, vision, citations | v1 snapshots, v2 visibility check |
+| Tool use, server-side tools, MCP | v2 spider agent, v2 discovery, v3 MCP server |
+| Agent loops, memory | v2 spider agent, v3 preferences |
+| Evals, cost & latency, reliability, security, observability | v1 evals + wrapper + dashboard, v2 CI / caching / injection |
+| Ingestion: OCR/layout, per-field confidence, review queue, reprocessing, drift | v1 confidence + review, v2 re-check + drift |
 
 ---
 
@@ -386,7 +386,7 @@ Claude reads web pages written by other people. A page can contain text written 
 Why it matters here:
 - **v1:** a planted wrong deadline or requirement → a missed application or a skipped test.
 - **v3:** the form helper takes actions → an injection could make it fill wrong data.
-- It is graded in the team capstone ("behaviour under prompt injection") and is topic 23.
+- Handling untrusted input is a core requirement for any agent that reads the web.
 
 ### 10.2 Defence layers
 1. **Page content is data, not instructions.** It goes into the prompt inside clearly delimited tags; the system prompt says instructions inside it must be ignored. *(v1)*
@@ -418,7 +418,6 @@ Why it matters here:
 ---
 
 ## 12. Definition of done (every milestone)
-From the team's topic bank:
 1. Runs from a clean clone with only an API key set.
 2. README explains the trade-offs (cost, latency, when it breaks), not just the API calls.
 3. At least one example deliberately made to fail, with the failure documented.

@@ -2,7 +2,7 @@
 
 **AI assistant that extracts masters program deadlines and requirements from university pages and PDFs, with source quotes, verified confidence and evals.**
 
-> 🚧 Work in progress — portfolio project for an AI-upskilling programme. See [`spec.md`](spec.md) for the full plan and [`docs/project-status.md`](docs/project-status.md) for progress.
+> 🚧 Work in progress — AI-engineering portfolio project. See [`spec.md`](spec.md) for the full plan and [`docs/project-status.md`](docs/project-status.md) for progress.
 
 ## What it does
 1. **Add a programme** — paste a URL; get deadlines (in PKT), requirements, fees and documents.
