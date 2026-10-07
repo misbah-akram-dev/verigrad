@@ -409,7 +409,7 @@ Why it matters here:
 
 ## 11. Open questions
 
-1. **Programme list for the golden set** — resolved: initial 3 in `docs/programs.md` (KAUST MS CS, EDISS Erasmus Mundus, KFUPM MS Data Science & Analytics), plus a Rejected section (KSU MSc AI, IU Madinah MSc Data Science) kept as eligibility-restriction examples; target ~30 by step 6, mostly programmes I'm applying to.
+1. **Programme list for the golden set** — resolved: initial 3 in `docs/programs.md` (KAUST MS CS, EDISS Erasmus Mundus, KFUPM MS Data Science & Analytics), plus a Rejected section (nationality- and gender-restricted examples) kept as eligibility-restriction examples; target ~30 by step 6, mostly programmes I'm applying to.
 2. ~~Scholarships: v1 field or v2?~~ Resolved: `funding_options` is a v1 field (§4.1), built alongside sources (step 2) and schema (step 3); the funding section/badges land in step 4, and the profile + primary-deadline picker in steps 7–8.
 3. Default extraction model, and which cheaper model to compare against (decide after first eval run).
 4. Exact accuracy threshold for CI (set after first baseline).

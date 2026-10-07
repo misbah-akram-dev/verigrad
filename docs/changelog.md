@@ -5,7 +5,7 @@ All notable changes, newest first.
 ## 2026-10-07 — docs: eligibility restrictions + golden-set fix (`docs/funding-and-sources`)
 - Added the missing `eligibility_restrictions: list[Evidence[Restriction]]` field (type nationality/gender/religious/other + condition; unstated → `"unknown"`, never assumed absent) to spec §4.1.
 - §6.1: the primary-deadline picker now flags a programme **"not eligible"** when a stated restriction excludes the profile; surfaced on the programme page and tracker card (spec §1.4).
-- `docs/programs.md`: moved KSU MSc AI out of the applying-programmes table into a new **Rejected** section alongside IU Madinah MSc Data Science, as examples of exclusionary restrictions — it should never have been listed as a programme being applied to. Golden-set count corrected to 3 initial programmes (not 4); updated cross-references in spec §11 and `docs/project-status.md`.
+- `docs/programs.md`: moved KSU MSc AI out of the applying-programmes table into a new **Rejected** section alongside a generic gender-restricted example, as examples of exclusionary restrictions — it should never have been listed as a programme being applied to. Golden-set count corrected to 3 initial programmes (not 4); updated cross-references in spec §11 and `docs/project-status.md`.
 - `CLAUDE.md`: corrected the Core principles line to "every deadline/funding option/**restriction**".
 - No code changes.
 

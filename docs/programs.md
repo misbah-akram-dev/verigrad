@@ -12,10 +12,10 @@
 
 Kept as examples of `eligibility_restrictions` (spec §4.1, §6.1) that flag a programme "not eligible" for my profile — not added to the tracker.
 
-| Programme | Country | Why rejected |
-|---|---|---|
-| KSU MSc AI | Saudi Arabia | Saudi nationals/residents only — excludes my (international) profile. |
-| IU Madinah MSc Data Science | Saudi Arabia | Male-only admission, plus a Qur'an memorisation requirement — both exclude my profile. |
+| Programme | Country | Restriction type | Why rejected |
+|---|---|---|---|
+| KSU MSc AI | Saudi Arabia | Nationality | Residents/nationals only — excludes my (international) profile. |
+| (generic example) | Saudi Arabia | Gender | Single-gender admission — excludes my profile. |
 
 ## Notes
 - Each applying-programme row becomes a `program_sources` set (spec §4.2): one row per URL, tagged with its `role`.

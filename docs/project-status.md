@@ -27,7 +27,7 @@
 | Unit tests | 60 passing (no network) | 2026-10-06 |
 
 ## Open questions
-- ~~Golden-set programme list~~ Resolved: initial 3 in `docs/programs.md` (KAUST MS CS, EDISS Erasmus Mundus, KFUPM MS Data Science & Analytics), plus a Rejected section (KSU MSc AI, IU Madinah) kept as eligibility-restriction examples; target ~30 by step 6. Next step is still step 2.
+- ~~Golden-set programme list~~ Resolved: initial 3 in `docs/programs.md` (KAUST MS CS, EDISS Erasmus Mundus, KFUPM MS Data Science & Analytics), plus a Rejected section (nationality- and gender-restricted examples) kept as eligibility-restriction examples; target ~30 by step 6. Next step is still step 2.
 - ~~Scholarships: v1 or v2?~~ Resolved: v1, via `funding_options` (spec §4.1); see `docs/changelog.md` 2026-10-07.
 - Default extraction model + comparison model: provisionally `claude-sonnet-5-5` / `claude-haiku-4-5`; decide after first eval
 - Is the chars/4 + expected-output estimate good enough for the per-job guard? Measure once extraction runs.
