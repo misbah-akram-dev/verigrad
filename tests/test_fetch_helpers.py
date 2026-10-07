@@ -169,7 +169,7 @@ def test_robots_disallow_and_cache() -> None:
         (404, True, None),
         (403, True, None),  # RFC 9309: 4xx = no rules
         (500, False, "robots_unavailable"),
-        (None, False, "robots_unavailable"),
+        (None, True, None),  # network failure: the page fetch reports the real error
     ],
 )
 def test_robots_status_handling(status: int | None, allowed: bool, reason: str | None) -> None:

@@ -46,4 +46,5 @@ pythonpath = ["tests"]
 addopts = "-m 'not live'"
 markers = [
     "live: calls the real Anthropic API (needs ANTHROPIC_API_KEY); run with `make test-live`",
+    "browser: drives real Chromium against a local fixture site (no internet); part of `make test`, skipped if Chromium isn't installed",
 ]

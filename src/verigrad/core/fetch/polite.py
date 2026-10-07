@@ -52,8 +52,10 @@ RobotsFetcher = Callable[[str], Awaitable[tuple[int | None, str]]]
 
 
 class RobotsChecker:
-    """Caches robots.txt per origin. Status handling follows RFC 9309:
-    2xx → parse; 4xx → no rules (allowed); 5xx or unreachable → disallow everything."""
+    """Caches robots.txt per origin. Status handling follows RFC 9309: 2xx → parse;
+    4xx → no rules (allowed); 5xx → disallow everything. A network-level failure (DNS,
+    refused) is not treated as a disallow: the page fetch then fails with the real error
+    instead of asking the user to upload a copy of an unreachable or mistyped URL."""
 
     def __init__(self, fetch: RobotsFetcher, user_agent: str = USER_AGENT_TOKEN) -> None:
         self._fetch = fetch
@@ -76,12 +78,12 @@ class RobotsChecker:
     async def _load(self, origin: str) -> RobotFileParser | None:
         status, body = await self._fetch(f"{origin}/robots.txt")
         parser = RobotFileParser()
-        if status is None or status >= 500:
+        if status is not None and status >= 500:
             return None
-        if 200 <= status < 300:
+        if status is not None and 200 <= status < 300:
             parser.parse(body.splitlines())
         else:
-            parser.parse([])  # 3xx left unresolved / 4xx: no rules apply
+            parser.parse([])  # 4xx, unresolved 3xx or network failure: no rules apply
         return parser
 
 
