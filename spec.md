@@ -1,7 +1,7 @@
 # Verigrad — Project Spec
 
-> **Project:** Verigrad (masters application assistant) · **Status:** Draft v0.2 · **Owner:** Misbah · **Last updated:** 2026-10-06
-> **Changes from v0.1:** web app replaces the CLI (evals keep one command); user-facing modules added (§1.3); fetching & blocked-page policy added (§3.4); prompt-injection defence explained more clearly (§10).
+> **Project:** Verigrad (masters application assistant) · **Status:** Draft v0.3 · **Owner:** Misbah · **Last updated:** 2026-10-07
+> **Changes from v0.2:** multiple sources per programme (§4.2); extraction never filters deadlines/funding (§4.1, §5); `funding_options` added (§4.1); user profile + primary-deadline picker (§6, §7); funding UI on programme page and tracker (§1.4).
 
 ---
 
@@ -50,14 +50,14 @@ Me (and anyone in the same position): an applicant tracking 10–20 masters prog
 ### 1.4 Core user flows (v1, all in the web app)
 
 **Flow A — Add a programme**
-1. I paste a URL on the **Add** page and press *Add*.
+1. I paste a URL on the **Add** page and press *Add*. I can add more source URLs for the same programme later (programme page, central admissions/deadlines page, scholarship page, …), each tagged with a role (§4.2 `program_sources`).
 2. A progress panel shows: fetching → extracting → verifying (runs as a background job, 10–30 s).
-3. The system saves a **snapshot**: rendered HTML, screenshot, captured JSON responses, linked PDFs.
-4. Claude extracts the fields in §4.1, each with a **source quote**.
+3. The system saves a **snapshot** per source: rendered HTML, screenshot, captured JSON responses, linked PDFs, linked to the source URL.
+4. Claude extracts the fields in §4.1 **from all of a programme's sources together**, each value with a **source quote** and which URL it came from.
 5. Code runs the **verification checks** (§5) and sets each field's confidence.
-6. I land on the **programme page**: highlights at the top, all fields with badges and quotes below, and a banner if fields need review.
+6. I land on the **programme page**: highlights at the top, all fields with badges and quotes below (quote shows its source URL), a **Funding** section with an eligibility warning when the profile flags me as not eligible (§6.1), and a banner if fields need review.
 7. A ★ button sets status `TARGETING`.
-8. If the page is blocked, I'm asked to save the page from my browser and upload it (§3.4).
+8. If a page is blocked, I'm asked to save the page from my browser and upload it (§3.4).
 
 **Flow B — Check & confirm**
 1. The **Review** page lists MEDIUM/LOW fields across all programmes.
@@ -66,11 +66,12 @@ Me (and anyone in the same position): an applicant tracking 10–20 masters prog
 
 **Flow C — Shortlist**
 - The **Tracker** page shows `TARGETING` programmes by default; filters for Saved / Applied / Dropped / All.
+- Each card shows a **funding badge**: Fully funded / Partial / Self-funded / Unknown (not yet published), plus an eligibility warning when the profile flags the programme "not eligible" (§6.1).
 - Buttons: ★ track, ✕ drop (optional reason), ↺ restore, mark applied/result.
 - Dropping never deletes data; permanent delete is a separate, confirmed action.
 
 **Flow D — Plan**
-- The **Plan** page shows every task for targeted programmes with "start by" dates in **PKT**, worked backwards from deadlines (§7), with overdue/soon highlighting.
+- The **Plan** page shows every task for targeted programmes with "start by" dates in **PKT**, worked backwards from the **primary deadline** (§7), chosen by my profile (§6.1), with overdue/soon highlighting. Other rounds are shown as fallbacks.
 - *Download calendar (.ics)* exports deadlines and task start dates — the v1 "reminder".
 
 **Flow E — Quality dashboard (engineering flow)**
@@ -99,13 +100,13 @@ Build order:
 | Step | Build | Page built with it | Done when |
 |---|---|---|---|
 | 1 | Repo setup; shared LLM wrapper (retries/backoff, per-call logging of model, tokens, cost, latency, request ID); extraction schema; SQLite store; FastAPI skeleton + base layout | Base layout | Every Claude call goes through the wrapper; app starts |
-| 2 | Fetch: Playwright snapshot (HTML, screenshot, JSON, PDFs, accordion expansion, block detection, manual upload); then snapshot ~30 real programme pages | **Add** page with background job + progress | A URL produces a complete snapshot folder |
-| 3 | Hand-label 5 programmes (no AI) to test the schema; fix schema | — | Schema covers all 5 without hacks |
-| 4 | Extraction with structured outputs + source quotes | **Programme** page | Output always validates against the schema |
+| 2 | Fetch: Playwright snapshot (HTML, screenshot, JSON, PDFs, accordion expansion, block detection, manual upload); **multiple sources per programme (`program_sources`, §4.2)**; then snapshot ~30 real programme pages | **Add** page with background job + progress | A URL produces a complete snapshot folder; a programme can have >1 source |
+| 3 | Hand-label 5 programmes (no AI) to test the schema; fix schema; **add `funding_route`/`eligible_levels` to deadlines, the `funding_options` schema and `eligibility_restrictions` (§4.1)** | — | Schema covers all 5 without hacks |
+| 4 | Extraction with structured outputs + source quotes, run across all of a programme's sources; **Funding section + eligibility warning on the programme page** | **Programme** page | Output always validates against the schema |
 | 5 | Verification checks 1–4 + confidence | Badges + "needs review" banner | Every field has a level and a list of failed checks |
 | 6 | Evals: label remaining ~25 (agent drafts, I confirm); `make eval`; baseline; at least one prompt or model comparison | **Dashboard** page | One command prints and stores accuracy, calibration, cost |
-| 7 | Tracker + status lifecycle; review flow | **Tracker** and **Review** pages | Track/drop/restore work; review confirms/corrects fields |
-| 8 | Backwards planning in PKT + `.ics` export | **Plan** page | Unit tests cover the date maths, including timezones |
+| 7 | Tracker + status lifecycle; review flow; **user profile (§6.1)** | **Tracker** and **Review** pages | Track/drop/restore work; review confirms/corrects fields; tracker shows funding badge |
+| 8 | Backwards planning in PKT + `.ics` export; **primary-deadline picker (§6.1, §7)** | **Plan** page | Unit tests cover the date maths, including timezones |
 
 **v1 demo numbers:** field accuracy · cost per programme · calibration (% correct per confidence level) · fetch success rate · at least one prompt/model comparison.
 
@@ -240,19 +241,24 @@ class Evidence(BaseModel):
 | | `duration_months` | int |
 | | `study_mode` | full-time / part-time / online |
 | Intakes (list) | `term` (e.g. "September 2027") | str |
-| | `deadlines` (list): `applicant_type` (international/EU/domestic/all), `date`, `time`, `timezone`, `kind` (fixed/rolling/priority/round) | per item `Evidence` |
+| | `deadlines` (list): `applicant_type` (international/EU/domestic/all), `date`, `time`, `timezone`, `kind` (fixed/rolling/priority/round), `funding_route` (scholarship/fee_waiver/self_funded/any), `eligible_levels` (MS/PhD/…) | per item `Evidence` |
 | Requirements | `english_tests`: IELTS overall + min band, TOEFL total | number |
 | | `gre_gmat` | required / optional / not required |
 | | `min_gpa` (value + scale) | number + str |
 | | `prerequisites` | list[str] |
 | | `required_documents` | list[str] |
 | Fees | `application_fee`, `tuition_per_year` (amount, currency, applicant_type) | number + str |
+| Funding | `funding_options` (list): `type` (full/partial/fee_waiver/self_funded), `covers` (tuition/stipend/housing/…), `amount` + `currency`, `deadline`, `eligibility` — "not yet published" → `value=None`, LOW confidence | per item `Evidence` |
+| Eligibility | `eligibility_restrictions` (list): `type` (nationality/gender/religious/other) + `condition` (free text) — if the page states none, `value` = `"unknown"`, never assumed absent | per item `Evidence` |
 | Meta | `ambiguity_notes` — anything Claude found ambiguous | str |
+
+**Extraction never filters.** Claude records every deadline and funding option it finds, faithfully, in whatever language the page uses — it never decides which one is "the" deadline or drops options that don't look relevant to me. Picking which round/route matters to me is the user profile's job (§6), applied at display/planning time, never at extraction time. Pages may be in languages other than English; Claude extracts and quotes in the original language (translation, if any, is a display concern, not an extraction one).
 
 ### 4.2 Database tables
 ```text
 programs     id, url, name, university, status, status_changed_at, drop_reason, created_at
-snapshots    id, program_id, fetched_at, fetch_outcome, html_path, text_path, screenshot_path,
+program_sources id, program_id, url, role (program/admissions/scholarship/fees/…), added_at
+snapshots    id, program_id, source_id, fetched_at, fetch_outcome, html_path, text_path, screenshot_path,
              json_paths, pdf_paths, visibility_map_path, content_hash, imported_manually
 extractions  id, snapshot_id, field_path, value_json, source_quote, source, source_ref,
              confidence, failed_checks, user_confirmed, model, prompt_version, created_at
@@ -267,6 +273,7 @@ eval_runs    id, started_at, model, prompt_version, accuracy, calibration_json, 
 ```
 - Re-extraction adds new rows; history is never overwritten (versioned by `model` + `prompt_version`).
 - `content_hash` lets re-checks skip unchanged pages.
+- A programme has **one or more `program_sources`** (programme page, central admissions/deadlines page, scholarship page, fees page, …), each with a `role`. Every snapshot belongs to exactly one source (`snapshots.source_id`); extraction runs over all of a programme's current snapshots together, and each `extractions.source_quote` is traceable back to its URL via `snapshot_id → source_id → url`. `programs.url` remains the primary/first-added source for backward compatibility with existing rows, but new sources go in `program_sources`.
 - The cost budget is scoped **per job** (one extraction/eval attempt), not per programme lifetime: the guard sums `llm_calls.cost_usd` by `job_id`, so repeated evals and re-extractions don't use up a programme's budget. `program_id` is kept for the Costs page (spend by programme). Calls with no `job_id` (e.g. smoke tests) skip the guard.
 - `estimated_cost_usd` (the pre-call estimate the guard used) is logged next to `cost_usd`, to measure estimate accuracy.
 
@@ -304,10 +311,19 @@ SAVED ──★track──► TARGETING ──submitted──► APPLIED ──�
 - Drop = status change + optional reason. Data is kept. Permanent delete is a separate, confirmed action.
 - This is plain app state in SQLite — **never stored in AI memory**.
 
+### 6.1 User profile and primary deadline
+
+- A **user profile** is plain SQLite state, set by me once (not AI memory, not inferred): applicant type = international/non-EU, degree level = Master's, funding priority = fully funded first, otherwise whatever exists for that programme, in order: partial → fee waiver → self-funded.
+- Because extraction records every deadline and funding option without filtering (§4.1), a **primary-deadline picker** (plain code) applies the profile at display/planning time: it matches the extracted `deadlines`/`funding_options` against my funding priority and eligible level, and picks the one deadline that governs my planning for that programme.
+- Other rounds/routes that don't match are still shown on the programme page, labelled as **fallback** deadlines — never hidden, never discarded.
+- If nothing matches the priority (e.g. only self-funded exists when I wanted a scholarship), the picker falls through the priority order and flags the result so it's visible it wasn't my first choice.
+- If a programme's extracted `eligibility_restrictions` state a condition my profile fails (e.g. nationality-restricted, gender-restricted), the picker flags the programme **"not eligible"** on the programme page and tracker card (§1.4). Unstated restrictions (`value = "unknown"`) are never treated as exclusions.
+
 ---
 
 ## 7. Deadline planning
 
+- Planning runs against each programme's **primary deadline** (§6.1); fallback deadlines are shown but not planned against unless I switch to one.
 - All deadlines stored with their source timezone; displayed in **PKT (`Asia/Karachi`)**.
 - A date with no time is assumed to be 23:59 in the university's local timezone and flagged.
 - Default lead times (configurable in `config.toml`, to be adjusted to real local timelines):
@@ -393,8 +409,8 @@ Why it matters here:
 
 ## 11. Open questions
 
-1. **Programme list for the golden set** — target countries, field of study and intake still to be confirmed.
-2. Scholarships: v1 field or v2?
+1. **Programme list for the golden set** — resolved: initial 3 in `docs/programs.md` (KAUST MS CS, EDISS Erasmus Mundus, KFUPM MS Data Science & Analytics), plus a Rejected section (nationality- and gender-restricted examples) kept as eligibility-restriction examples; target ~30 by step 6, mostly programmes I'm applying to.
+2. ~~Scholarships: v1 field or v2?~~ Resolved: `funding_options` is a v1 field (§4.1), built alongside sources (step 2) and schema (step 3); the funding section/badges land in step 4, and the profile + primary-deadline picker in steps 7–8.
 3. Default extraction model, and which cheaper model to compare against (decide after first eval run).
 4. Exact accuracy threshold for CI (set after first baseline).
 5. Lead times in §7 — confirm against real timelines (e.g. attestation in Pakistan).
