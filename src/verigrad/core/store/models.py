@@ -30,6 +30,14 @@ class FetchOutcome(StrEnum):
     FAILED = "FAILED"
 
 
+class SourceRole(StrEnum):
+    PROGRAM = "program"
+    ADMISSIONS = "admissions"
+    SCHOLARSHIP = "scholarship"
+    FEES = "fees"
+    OTHER = "other"
+
+
 class JobKind(StrEnum):
     FETCH = "fetch"
     EXTRACT = "extract"
@@ -59,21 +67,48 @@ class Program(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class ProgramSource(SQLModel, table=True):
+    """One URL of a programme (spec §4.2). A URL may be shared by several programmes."""
+
+    __tablename__ = "program_sources"
+
+    id: int | None = Field(default=None, primary_key=True)
+    program_id: int = Field(foreign_key="programs.id", index=True)
+    url: str = Field(index=True)
+    role: SourceRole = SourceRole.PROGRAM
+    added_at: datetime = Field(default_factory=utcnow)
+
+
 class Snapshot(SQLModel, table=True):
+    """One fetch attempt (or manual import) of one source.
+
+    `snapshot_dir` is relative to the data dir; file paths are relative to `snapshot_dir`.
+    A reused row points at another snapshot's folder and is not a fetch attempt.
+    """
+
     __tablename__ = "snapshots"
 
     id: int | None = Field(default=None, primary_key=True)
     program_id: int = Field(foreign_key="programs.id", index=True)
+    source_id: int = Field(foreign_key="program_sources.id", index=True)
     fetched_at: datetime = Field(default_factory=utcnow)
     fetch_outcome: FetchOutcome
+    outcome_reason: str | None = None
+    url: str
+    final_url: str | None = None
+    http_status: int | None = None
+    snapshot_dir: str
     html_path: str | None = None
     text_path: str | None = None
+    visible_text_path: str | None = None
     screenshot_path: str | None = None
+    meta_path: str | None = None
     json_paths: str = "[]"  # JSON list of paths
     pdf_paths: str = "[]"  # JSON list of paths
     visibility_map_path: str | None = None
     content_hash: str | None = Field(default=None, index=True)
     imported_manually: bool = False
+    reused_from_snapshot_id: int | None = Field(default=None, foreign_key="snapshots.id")
 
 
 class Extraction(SQLModel, table=True):
