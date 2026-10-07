@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from unittest.mock import MagicMock
 
 import pytest
+from fastapi.testclient import TestClient
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import async_playwright
 from sqlalchemy import Engine
@@ -14,6 +15,7 @@ from fixture_site import BROWSER_CHANNEL, FixtureSite, serve_fixture_site
 from helpers import fake_message
 from verigrad.config import Settings
 from verigrad.core.store.db import init_db, make_engine
+from verigrad.web.app import create_app
 
 INSTALL_HINT = (
     "Chromium not installed: run `uv run playwright install chromium` "
@@ -66,6 +68,13 @@ def engine(settings: Settings) -> Iterator[Engine]:
     init_db(eng)
     yield eng
     eng.dispose()
+
+
+@pytest.fixture
+def client(settings: Settings) -> Iterator[TestClient]:
+    """The web app with its real job runner, on a temp data dir."""
+    with TestClient(create_app(settings)) as test_client:
+        yield test_client
 
 
 @pytest.fixture

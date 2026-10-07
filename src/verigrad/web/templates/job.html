@@ -6,5 +6,10 @@
   {{ job.program_name or ("Programme #" ~ job.program_id) }}
 </h1>
 <p class="mt-1 text-sm text-slate-500">Saved. Snapshots are taken one page at a time, politely spaced.</p>
+{% if upload_error %}
+<div class="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800" role="alert">
+  Upload refused: {{ upload_error }}
+</div>
+{% endif %}
 <div class="mt-6">{% include "_job_panel.html" %}</div>
 {% endblock %}

@@ -3,10 +3,12 @@ core/fetch/actions.py and core/fetch/manual_import.py."""
 
 from typing import Annotated
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
 from verigrad.core.fetch import actions
+from verigrad.core.fetch.manual_import import MAX_UPLOAD_BYTES, UploadError
 from verigrad.core.store.models import SourceRole
 from verigrad.web.routes import context, templates
 
@@ -81,6 +83,30 @@ def refetch(request: Request, source_id: int) -> RedirectResponse:
     job_id = actions.refetch_source(request.app.state.engine, request.app.state.runner, source_id)
     if job_id is None:
         raise HTTPException(status_code=404, detail="source not found")
+    return RedirectResponse(f"/add/jobs/{job_id}", status_code=303)
+
+
+@router.post("/sources/{source_id}/import", response_model=None)
+async def import_upload(
+    request: Request, source_id: int, file: Annotated[UploadFile, File()]
+) -> Response:
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    engine, runner = request.app.state.engine, request.app.state.runner
+    try:
+        job_id = await run_in_threadpool(
+            actions.import_upload, engine, runner, source_id, file.filename or "", data
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="source not found") from exc
+    except UploadError as exc:
+        latest = actions.latest_job_for_source(engine, source_id)
+        if latest is None:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        values = context(request, "/add") | {
+            "job": _view(request, latest),
+            "upload_error": str(exc),
+        }
+        return templates.TemplateResponse(request, "job.html", values, status_code=400)
     return RedirectResponse(f"/add/jobs/{job_id}", status_code=303)
 
 

@@ -65,6 +65,16 @@
         <form method="post" action="/sources/{{ source.source_id }}/refetch">
           <button type="submit" class="text-sm font-medium text-slate-700 hover:text-slate-900">&#8635; Re-fetch</button>
         </form>
+        {% if source.can_upload %}
+        <form method="post" action="/sources/{{ source.source_id }}/import" enctype="multipart/form-data"
+              class="flex flex-wrap items-end gap-2 text-sm" data-upload>
+          <label class="block">
+            <span class="block text-slate-600">Couldn't fetch it? Save the page from your browser (Ctrl+S, or print to PDF) and upload it:</span>
+            <input type="file" name="file" accept=".html,.htm,.pdf" required class="mt-1 text-sm">
+          </label>
+          <button type="submit" class="rounded-md bg-slate-800 px-3 py-1.5 font-medium text-white hover:bg-slate-900">Upload</button>
+        </form>
+        {% endif %}
       </div>
       {% endif %}
     </li>

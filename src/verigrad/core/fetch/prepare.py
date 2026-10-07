@@ -38,7 +38,7 @@ _COOKIE_JS = """
 }
 """
 
-_OPEN_DETAILS_JS = """
+OPEN_DETAILS_JS = """
 () => {
   const closed = document.querySelectorAll('details:not([open])');
   closed.forEach(d => { d.open = true; });
@@ -141,7 +141,7 @@ async def prepare_page(page: Page) -> PrepStats:
             skip.add(outcome)
             if attempt == 1:
                 stats.expansion_stopped = True
-                await _safe_eval(page, _OPEN_DETAILS_JS, default=0)
+                await _safe_eval(page, OPEN_DETAILS_JS, default=0)
     finally:
         watch.detach()
     await scroll_through(page)
@@ -152,7 +152,7 @@ async def _expand_once(
     page: Page, stats: PrepStats, watch: _NavigationWatch, skip: set[int]
 ) -> int | None:
     """Open details and click toggles. Returns the index of a toggle that navigated, else None."""
-    stats.details_opened = max(stats.details_opened, await _safe_eval(page, _OPEN_DETAILS_JS, 0))
+    stats.details_opened = max(stats.details_opened, await _safe_eval(page, OPEN_DETAILS_JS, 0))
     keys: list[int] = await _safe_eval(page, _MARK_TOGGLES_JS, [], MAX_TOGGLES)
     clicked = 0
     for key in keys:

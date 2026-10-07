@@ -1,12 +1,45 @@
-"""Test helpers: DB seeding and fake Anthropic responses."""
+"""Test helpers: DB seeding, fake Anthropic responses, web-flow helpers."""
 
+import time
 from types import SimpleNamespace
 from typing import Any
 
+from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 from sqlmodel import Session
 
-from verigrad.core.store.models import Job, JobKind, Program
+from verigrad.core.store.models import Job, JobKind, JobStatus, Program
+
+
+def wait_for_job(client: TestClient, job_id: int, timeout: float = 90) -> Job:
+    """Poll the DB until a background job finishes."""
+    engine = client.app.state.engine  # type: ignore[attr-defined]
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        with Session(engine) as session:
+            job = session.get(Job, job_id)
+            if job and job.status not in (JobStatus.QUEUED, JobStatus.RUNNING):
+                return job
+        time.sleep(0.1)
+    raise AssertionError(f"job {job_id} did not finish")
+
+
+def submit_add_form(client: TestClient, sources: list[tuple[str, str]], name: str = "") -> int:
+    """POST the Add form; returns the started job id."""
+    response = client.post(
+        "/add",
+        data={"name": name, "url": [u for u, _ in sources], "role": [r for _, r in sources]},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303, response.text
+    location = response.headers["location"]
+    assert location.startswith("/add/jobs/")
+    return int(location.rsplit("/", 1)[-1])
+
+
+def job_id_from_redirect(response: Any) -> int:
+    assert response.status_code == 303, response.text
+    return int(response.headers["location"].rsplit("/", 1)[-1])
 
 
 def make_job(engine: Engine, program_id: int | None = None) -> int:

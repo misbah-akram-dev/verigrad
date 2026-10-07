@@ -10,6 +10,7 @@ from sqlalchemy import Engine
 from sqlmodel import Session
 
 from verigrad.config import Settings
+from verigrad.core.fetch.manual_import import run_import_job, stage_upload
 from verigrad.core.fetch.models import META, SnapshotMeta
 from verigrad.core.fetch.service import run_fetch_job
 from verigrad.core.jobs.models import JobProgress, SourceState
@@ -115,6 +116,35 @@ def refetch_source(engine: Engine, runner: JobRunner, source_id: int) -> int | N
         if source is None:
             return None
         return _start_fetch(engine, runner, session, source.program_id, [source_id], force=True)
+
+
+def import_upload(
+    engine: Engine, runner: JobRunner, source_id: int, filename: str, data: bytes
+) -> int:
+    """Stage an uploaded page/PDF for a source and start its import job. Raises UploadError
+    (shown to the user) or LookupError (unknown source)."""
+    with Session(engine) as session:
+        source = session.get(ProgramSource, source_id)
+        if source is None:
+            raise LookupError(f"source {source_id} not found")
+        staged = stage_upload(runner.settings, source, filename, data)
+        job_id = repo.create_job(session, JobKind.FETCH, source.program_id).id
+    assert job_id is not None
+
+    def work():  # type: ignore[no-untyped-def]
+        return run_import_job(engine, runner.settings, job_id, source_id, staged)
+
+    runner.submit(job_id, work)
+    return job_id
+
+
+def latest_job_for_source(engine: Engine, source_id: int) -> int | None:
+    with Session(engine) as session:
+        source = session.get(ProgramSource, source_id)
+        if source is None:
+            return None
+        job = repo.latest_job_for_program(session, source.program_id)
+        return job.id if job else None
 
 
 def _start_fetch(

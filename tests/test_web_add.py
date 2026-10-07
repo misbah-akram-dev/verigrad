@@ -1,13 +1,12 @@
 """Add page flow via TestClient: form → background fetch job → polling panel → files."""
 
-import time
-from collections.abc import Iterator
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from fixture_site import FixtureSite
+from helpers import submit_add_form as submit
+from helpers import wait_for_job
 from verigrad.config import Settings
 from verigrad.core.store import repository as repo
 from verigrad.core.store.models import (
@@ -18,37 +17,11 @@ from verigrad.core.store.models import (
     Snapshot,
     SourceRole,
 )
-from verigrad.web.app import create_app
 
 
 @pytest.fixture
-def web(settings: Settings) -> Iterator[TestClient]:
-    with TestClient(create_app(settings)) as client:
-        yield client
-
-
-def wait_for_job(client: TestClient, job_id: int, timeout: float = 90) -> Job:
-    engine = client.app.state.engine  # type: ignore[attr-defined]
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        with Session(engine) as session:
-            job = session.get(Job, job_id)
-            if job and job.status not in (JobStatus.QUEUED, JobStatus.RUNNING):
-                return job
-        time.sleep(0.1)
-    raise AssertionError(f"job {job_id} did not finish")
-
-
-def submit(client: TestClient, sources: list[tuple[str, str]], name: str = "") -> int:
-    response = client.post(
-        "/add",
-        data={"name": name, "url": [u for u, _ in sources], "role": [r for _, r in sources]},
-        follow_redirects=False,
-    )
-    assert response.status_code == 303, response.text
-    location = response.headers["location"]
-    assert location.startswith("/add/jobs/")
-    return int(location.rsplit("/", 1)[-1])
+def web(client: TestClient) -> TestClient:
+    return client
 
 
 # --- form (no browser) -------------------------------------------------------------------
