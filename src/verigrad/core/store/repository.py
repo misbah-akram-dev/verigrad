@@ -148,6 +148,12 @@ def fetch_stats(session: Session) -> FetchStats:
 # --- jobs -------------------------------------------------------------------------------
 
 
+def latest_job_for_program(session: Session, program_id: int) -> Job | None:
+    return session.exec(
+        select(Job).where(Job.program_id == program_id).order_by(col(Job.id).desc())
+    ).first()
+
+
 def create_job(session: Session, kind: JobKind, program_id: int | None) -> Job:
     job = Job(kind=kind, program_id=program_id)
     session.add(job)
