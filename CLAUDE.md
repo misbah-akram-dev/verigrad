@@ -7,6 +7,7 @@ Verigrad is a local, single-user web app that extracts masters programme details
 - `docs/project-status.md` — current milestone, what's done, where we left off. **Read at the start of every session.**
 - `docs/architecture.md` — modules and how they connect
 - `docs/changelog.md` — what changed and when
+- `docs/decisions.md` — why things are designed this way; read before changing a design decision
 
 ## Stack
 Python 3.12 · `uv` · Anthropic SDK · Pydantic v2 · Playwright (Chromium) · selectolax/trafilatura · pdfplumber · SQLite (SQLModel) · FastAPI + Jinja2 + HTMX + Tailwind (CDN) · Chart.js · pytest. Don't add other frameworks or libraries without asking.
