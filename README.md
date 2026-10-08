@@ -1,5 +1,7 @@
 # Verigrad
 
+[![CI](https://github.com/misbah-akram-dev/verigrad/actions/workflows/ci.yml/badge.svg)](https://github.com/misbah-akram-dev/verigrad/actions/workflows/ci.yml)
+
 **AI assistant that extracts masters program deadlines and requirements from university pages and PDFs, with source quotes, verified confidence and evals.**
 
 > 🚧 Work in progress — AI-engineering portfolio project. See [`spec.md`](spec.md) for the full plan and [`docs/project-status.md`](docs/project-status.md) for progress.
