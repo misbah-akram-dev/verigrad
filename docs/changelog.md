@@ -2,6 +2,12 @@
 
 All notable changes, newest first.
 
+## 2026-10-08 — snapshot meta records the browser (`feat/snapshot-browser-info`)
+- `meta.json` gains `browser: {name, version, channel}` (e.g. `chromium`, `141.0.7390.37`, `null` = Playwright's bundled build, or `msedge`/`chrome`), so a change in captured text can be traced to a browser upgrade or channel switch.
+- Set for fetched pages and offline-rendered HTML imports; `null` for robots.txt refusals and PDF uploads (no browser rendered them). Older `meta.json` files load unchanged (`browser` defaults to `null`).
+- `snapshot_source(..., channel=...)` is now a required keyword, so the recorded channel can't silently disagree with the launched browser.
+- Tests: 147 (3 new browser-free; browser tests extended). All pass locally against Edge with `VERIGRAD_REQUIRE_BROWSER=1`.
+
 ## 2026-10-08 — CI: GitHub Actions (`chore/ci`)
 - `.github/workflows/ci.yml`: on every pull request and push to `main`; ubuntu-latest, Python 3.12 via `uv` (cached), `uv sync --locked`, `ruff check` + `ruff format --check`, then `uv run pytest`.
 - CI installs Playwright Chromium (`--with-deps`) so the 21 browser tests run against the local fixture site rather than skipping.

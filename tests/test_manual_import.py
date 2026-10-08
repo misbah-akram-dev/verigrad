@@ -132,6 +132,7 @@ def test_html_import_renders_offline(
     assert (folder / "screenshot.png").exists()
     meta = json.loads((folder / "meta.json").read_text(encoding="utf-8"))
     assert meta["imported_manually"] is True and meta["reason"] == "uploaded Admissions.html"
+    assert meta["browser"]["name"] == "chromium" and meta["browser"]["version"]
 
     panel = client.get(f"/add/jobs/{import_job}/panel").text
     assert 'data-state="imported"' in panel and "uploaded manually" in panel
@@ -139,7 +140,9 @@ def test_html_import_renders_offline(
 
 @pytest.mark.browser
 @pytest.mark.usefixtures("chromium")
-def test_pdf_import_and_refused_upload(client: TestClient, site: FixtureSite) -> None:
+def test_pdf_import_and_refused_upload(
+    client: TestClient, settings: Settings, site: FixtureSite
+) -> None:
     job_id = submit_add_form(client, [(site.url("forbidden"), "program")])
     assert wait_for_job(client, job_id).status == JobStatus.BLOCKED
     assert "data-upload" in client.get(f"/add/jobs/{job_id}/panel").text
@@ -161,6 +164,8 @@ def test_pdf_import_and_refused_upload(client: TestClient, site: FixtureSite) ->
     imported = [r for r in rows if r.imported_manually]
     assert len(imported) == 1
     assert json.loads(imported[0].pdf_paths) == ["pdfs/01_upload.pdf"]
+    meta_path = settings.data_dir / imported[0].snapshot_dir / "meta.json"
+    assert json.loads(meta_path.read_text(encoding="utf-8"))["browser"] is None  # no rendering
 
     missing = client.post("/sources/999/import", files={"file": ("a.pdf", b"%PDF", "x")})
     assert missing.status_code == 404
