@@ -2,6 +2,7 @@
 internet: browser tests fetch from a local fixture site."""
 
 import asyncio
+import os
 from collections.abc import Iterator
 from unittest.mock import MagicMock
 
@@ -21,6 +22,8 @@ INSTALL_HINT = (
     "Chromium not installed: run `uv run playwright install chromium` "
     "(or set VERIGRAD_BROWSER_CHANNEL=msedge)"
 )
+# CI sets this so a missing browser fails the run instead of silently skipping browser tests.
+REQUIRE_BROWSER = os.environ.get("VERIGRAD_REQUIRE_BROWSER") == "1"
 
 
 async def _chromium_launches() -> bool:
@@ -35,8 +38,11 @@ async def _chromium_launches() -> bool:
 
 @pytest.fixture(scope="session")
 def chromium() -> None:
-    """Browser tests depend on this: skip (with the install command) if Chromium is missing."""
+    """Browser tests depend on this: skip (with the install command) if Chromium is missing,
+    or fail if VERIGRAD_REQUIRE_BROWSER=1."""
     if not asyncio.run(_chromium_launches()):
+        if REQUIRE_BROWSER:
+            pytest.fail(f"VERIGRAD_REQUIRE_BROWSER=1 but no browser launched. {INSTALL_HINT}")
         pytest.skip(INSTALL_HINT)
 
 

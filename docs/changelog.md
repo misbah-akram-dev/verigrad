@@ -2,6 +2,14 @@
 
 All notable changes, newest first.
 
+## 2026-10-08 — CI: GitHub Actions (`chore/ci`)
+- `.github/workflows/ci.yml`: on every pull request and push to `main`; ubuntu-latest, Python 3.12 via `uv` (cached), `uv sync --locked`, `ruff check` + `ruff format --check`, then `uv run pytest`.
+- CI installs Playwright Chromium (`--with-deps`) so the 21 browser tests run against the local fixture site rather than skipping.
+- New test switch `VERIGRAD_REQUIRE_BROWSER=1` (set in CI): the `chromium` fixture fails instead of skipping when no browser launches, so a broken browser install can't pass silently. Local runs are unchanged.
+- No secrets in CI: `live` tests stay excluded by the pytest `addopts`.
+- README: CI status badge.
+- No app code changes.
+
 ## 2026-10-07 — v1 step 2: fetch, snapshots, Add page (`feat/fetch`)
 - Dependencies: `playwright`, `selectolax`, `python-multipart`. One-time browser install: `uv run playwright install chromium`.
 - `program_sources` table (role-tagged URLs per programme); snapshots link to a source and gain `outcome_reason`, `url`, `final_url`, `http_status`, `snapshot_dir`, `visible_text_path`, `meta_path`, `reused_from_snapshot_id`.

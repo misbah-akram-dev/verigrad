@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Browser tests must run in CI: a missing browser fails the job instead of skipping.
+      VERIGRAD_REQUIRE_BROWSER: "1"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Install Chromium
+        run: uv run playwright install --with-deps chromium
+
+      # `live` tests are excluded by pytest addopts; no secrets are needed.
+      - name: Test
+        run: uv run pytest -rs
