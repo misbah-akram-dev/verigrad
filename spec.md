@@ -1,6 +1,7 @@
 # Verigrad — Project Spec
 
-> **Project:** Verigrad (masters application assistant) · **Status:** Draft v0.4 · **Owner:** Misbah · **Last updated:** 2026-10-09
+> **Project:** Verigrad (masters application assistant) · **Status:** Draft v0.5 · **Owner:** Misbah · **Last updated:** 2026-10-09
+> **Changes from v0.4:** the user tracks offerings (programme + degree level), not pages, with per-value applicability (D30); v2 page discovery agent: one URL → pages → offerings (D31) (§1.3, §1.4 Flow A v2, §2, §3.2, §4.1, §8, §10.2, §11).
 > **Changes from v0.3:** status lifecycle gains undo-result and withdraw; Applied filter includes results; permanent-delete rules (shared snapshots, cost rows) (§1.4 Flow C, §6).
 > **Changes from v0.2:** multiple sources per programme (§4.2); extraction never filters deadlines/funding (§4.1, §5); `funding_options` added (§4.1); user profile + primary-deadline picker (§6, §7); funding UI on programme page and tracker (§1.4).
 
@@ -37,14 +38,14 @@ Me (and anyone in the same position): an applicant tracking 10–20 masters prog
 
 | # | User module | What I do | What I get | Version |
 |---|---|---|---|---|
-| 1 | **Add a programme** | Paste a programme URL | A programme card with the key details highlighted: deadlines (in PKT), requirements, fees, documents — each with a confidence badge and the source sentence | v1 |
+| 1 | **Add a programme** | v1: paste the programme's URL(s). v2: paste **one** URL — the agent finds the relevant pages on that site and shows the offerings it found (MS, MS/PhD, PhD…); I tick the ones to track | A programme card with the key details highlighted: deadlines (in PKT), requirements, fees, documents — each with a confidence badge and the source sentence | v1 → v2 |
 | 2 | **Check & confirm** | Open the review screen | Only the doubtful details, each shown with its quote, the reason it was flagged, and the page screenshot; I accept or correct | v1 |
 | 3 | **My shortlist** | Star, drop, restore, mark applied | A tracker of the programmes I'm targeting, with status filters | v1 |
 | 4 | **My plan** | Open the plan page | A timeline of what to start and when (ask recommenders, book IELTS…) in PKT, plus a calendar file to import | v1 |
 | 5 | **Quality dashboard** | Open the dashboard | How accurate the assistant is, how trustworthy each confidence level is, and what it costs — the "engineering story" page for demos | v1 |
 | 6 | **Stay updated** | Nothing — runs weekly | An alert when a tracked programme's page changes (e.g. a deadline moved) | v2 |
 | 7 | **Am I eligible?** | Fill in my profile once | A fit check for each programme: which requirements I meet and which I don't | v2 |
-| 8 | **Find programmes** *(optional)* | Describe what I want ("MSc Data Science, Germany, under €5k") | A few candidate programme links to add | v2 |
+| 8 | **Find programmes** *(optional)* | Describe what I want ("MSc Data Science, Germany, under €5k") | A few candidate programme links to add. Differs from module 1 (v2): this searches the web for programmes I don't know yet; module 1 follows links within a site I already have | v2 |
 | 9 | **Ask my tracker** | Ask Claude "what's due in the next 14 days?" | An answer from my own tracker data | v3 |
 | 10 | **Form helper** | Open an application form | A fill plan: which of my details goes into which field, converted to that form's format, with confidence; I fill/submit myself | v3 |
 
@@ -59,6 +60,14 @@ Me (and anyone in the same position): an applicant tracking 10–20 masters prog
 6. I land on the **programme page**: highlights at the top, all fields with badges and quotes below (quote shows its source URL), a **Funding** section with an eligibility warning when the profile flags me as not eligible (§6.1), and a banner if fields need review.
 7. A ★ button sets status `TARGETING`.
 8. If a page is blocked, I'm asked to save the page from my browser and upload it (§3.4).
+
+**Flow A (v2) — One URL → offerings** (D30, D31)
+1. I paste **one** URL (e.g. a department's programme page) on the **Add** page.
+2. A progress panel shows the discovery agent at work: pages found → fetched → extracting.
+3. I see **offering cards** (e.g. MS, MS/PhD, PhD) with key facts — deadlines, requirements, fees, funding — each with its badge and quote, plus a collapsible **"pages used"** list saying why each page was chosen.
+4. I tick the offerings I want; they go to the Tracker. If a page was missed, I add its URL to the programme by hand.
+
+v1 still needs **"add a source URL to an existing programme"** (step 1 above; not built yet).
 
 **Flow B — Check & confirm**
 1. The **Review** page lists MEDIUM/LOW fields across all programmes.
@@ -103,7 +112,7 @@ Build order:
 |---|---|---|---|
 | 1 | Repo setup; shared LLM wrapper (retries/backoff, per-call logging of model, tokens, cost, latency, request ID); extraction schema; SQLite store; FastAPI skeleton + base layout | Base layout | Every Claude call goes through the wrapper; app starts |
 | 2 | Fetch: Playwright snapshot (HTML, screenshot, JSON, PDFs, accordion expansion, block detection, manual upload); **multiple sources per programme (`program_sources`, §4.2)**; then snapshot ~30 real programme pages | **Add** page with background job + progress | A URL produces a complete snapshot folder; a programme can have >1 source |
-| 3 | Hand-label 5 programmes (no AI) to test the schema; fix schema; **add `funding_route`/`eligible_levels` to deadlines, the `funding_options` schema and `eligibility_restrictions` (§4.1)** | — | Schema covers all 5 without hacks |
+| 3 | Hand-label 5 programmes (no AI) to test the schema; fix schema; **add `funding_route`/`eligible_levels` to deadlines, the `funding_options` schema and `eligibility_restrictions` (§4.1)**; **extraction output as a list of offerings with per-value applicability (D30)** | — | Schema covers all 5 without hacks |
 | 4 | Extraction with structured outputs + source quotes, run across all of a programme's sources; **Funding section + eligibility warning on the programme page** | **Programme** page | Output always validates against the schema |
 | 5 | Verification checks 1–4 + confidence | Badges + "needs review" banner | Every field has a level and a list of failed checks |
 | 6 | Evals: label remaining ~25 (agent drafts, I confirm); `make eval`; baseline; at least one prompt or model comparison | **Dashboard** page | One command prints and stores accuracy, calibration, cost |
@@ -115,6 +124,7 @@ Build order:
 ### v2 — Production-grade (week 3)
 | Scope | Number it produces |
 |---|---|
+| Page discovery agent (one URL → pages → offerings, D31) | Page recall vs hand labels' `sources` + `missing_sources`; offering recall (every MS / MS-PhD / PhD found); pages fetched and cost per discovery |
 | Hidden-text detection (check 5) + injection test pages | Attack success rate, before vs after |
 | Self-verifying spider: agent writes a selector per confirmed field, runs it on the snapshot, fixes it until the output matches the confirmed value | % fields with working selectors (1st try vs after repair) |
 | Weekly re-check using selectors; re-extract only changed fields with Claude; change alerts in the app | Re-check cost: selectors vs full Claude re-read |
@@ -123,7 +133,7 @@ Build order:
 | Prompt caching for the shared extraction prompt | Cost and time-to-first-token, before vs after |
 | Fit check (profile vs requirements) — **Eligibility** view | — |
 | Review screen: box drawn on the screenshot where the quote appears | — |
-| *(Optional)* Agent discovery with the web-search tool | — |
+| *(Optional)* Find programmes (module 8): agent discovery with the web-search tool | — |
 
 ### v3 — Agentic & integrations (week 4)
 | Scope | Number it produces |
@@ -139,7 +149,7 @@ Build order:
 | Messages API, prompting, structured outputs, streaming, token/cost | v1 extraction, wrapper, progress UI |
 | Documents/PDFs, vision, citations | v1 snapshots, v2 visibility check |
 | Tool use, server-side tools, MCP | v2 spider agent, v2 discovery, v3 MCP server |
-| Agent loops, memory | v2 spider agent, v3 preferences |
+| Agent loops, memory | v2 spider agent, v2 page discovery agent, v3 preferences |
 | Evals, cost & latency, reliability, security, observability | v1 evals + wrapper + dashboard, v2 CI / caching / injection |
 | Ingestion: OCR/layout, per-field confidence, review queue, reprocessing, drift | v1 confidence + review, v2 re-check + drift |
 
@@ -185,6 +195,7 @@ Build order:
   llm/         shared wrapper: retries, cost/latency logging, run_eval()
   jobs/        background job runner + status for the progress UI
   spider/      (v2) selector generation + repair agent, re-checks
+  discover/    (v2) page discovery agent: one URL → on-site links → relevant pages → snapshots
  evals/
   golden/      snapshot folders + labels.json per programme
   run.py       scoring, calibration, reports → stored for the dashboard
@@ -254,6 +265,8 @@ class Evidence(BaseModel):
 | Funding | `funding_options` (list): `type` (full/partial/fee_waiver/self_funded), `covers` (tuition/stipend/housing/…), `amount` + `currency`, `deadline`, `eligibility` — "not yet published" → `value=None`, LOW confidence | per item `Evidence` |
 | Eligibility | `eligibility_restrictions` (list): `type` (nationality/gender/religious/other) + `condition` (free text) — if the page states none, `value` = `"unknown"`, never assumed absent | per item `Evidence` |
 | Meta | `ambiguity_notes` — anything Claude found ambiguous | str |
+
+**Offerings (D30):** these fields will be grouped per **offering** (programme + degree level, e.g. MS, MS/PhD, PhD), and each value gets an **applicability**: the degree levels it applies to, or "not stated" — never assumed to apply to all. Details are designed in step 3.
 
 **Extraction never filters.** Claude records every deadline and funding option it finds, faithfully, in whatever language the page uses — it never decides which one is "the" deadline or drops options that don't look relevant to me. Picking which round/route matters to me is the user profile's job (§6), applied at display/planning time, never at extraction time. Pages may be in languages other than English; Claude extracts and quotes in the original language (translation, if any, is a display concern, not an extraction one).
 
@@ -357,6 +370,7 @@ SAVED ──★track──► TARGETING ──submitted──► APPLIED ──r
 ### 8.1 Golden set
 - 25–30 programmes, **mostly ones I'm actually applying to**, plus deliberately varied/hard pages: several intakes, rolling admissions, details only in PDFs, JavaScript-rendered pages, accordions, different countries.
 - Each is a frozen snapshot + `labels.json` with the correct value for every field.
+- Each label also records `sources` (pages snapshotted and used) and `missing_sources` (pages a human needed that weren't snapshotted, with what they hold). Together they are the ground truth for discovery page recall (v2, D31). How labels represent several offerings per programme is decided in step 3.
 
 ### 8.2 Labelling workflow
 1. Label the first 5 programmes **by hand, without AI**.
@@ -405,6 +419,7 @@ Why it matters here:
 3. **No acting tools during extraction.** Extraction can't write, browse or send anything. *(v1)*
 4. **Visibility check.** At fetch time Playwright records which text a person can actually see (display, visibility, opacity, size, colour vs background, position). A value whose only source is invisible text is LOW and flagged. *(v2)*
    - Not all hidden text is malicious: real deadlines often sit in collapsed accordions. The fetcher **expands accordions first** (§3.4), so "collapsed but expandable" content becomes visible and only deliberately invisible text is flagged.
+5. **Discovery agent can only follow found links.** Its only tool fetches a URL that code already found on a fetched page within the allowed domains, so a page can't send it elsewhere or make it act (D31). *(v2)*
 
 ### 10.3 Other rules
 - The system never submits forms. The form helper (v3) only produces a plan or fills fields for me to review.
@@ -425,6 +440,7 @@ Why it matters here:
 3. Default extraction model, and which cheaper model to compare against (decide after first eval run).
 4. Exact accuracy threshold for CI (set after first baseline).
 5. Lead times in §7 — confirm against real timelines (e.g. attestation in Pakistan).
+6. Discovery (D31): which model decides page relevance (Haiku vs Sonnet), and the page/depth limits — tune after first runs.
 
 ---
 

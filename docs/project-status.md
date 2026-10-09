@@ -4,17 +4,29 @@
 
 **Current milestone:** v1 — Extraction engine + web app
 **Target:** v1 demo by end of week 2 (may run into early week 3)
-**Last session:** 2026-10-09 — Tracker page + status lifecycle (`feat/tracker`, step 7 part 1); PR #7 re-landed on `main` as #8 (it had been merged into `chore/ci` only)
+**Last session:** 2026-10-09 — docs: offerings + v2 page discovery direction (`docs/discovery-offerings`, D30, D31), after hand-labelling KAUST
 
 ## v1 build steps (spec §2)
 - [x] 1. Repo setup, LLM wrapper, extraction schema, SQLite store, FastAPI skeleton
 - [x] 2. Fetch + snapshots + Add page — built; **remaining:** snapshot ~30 real programme pages (8 pages / 3 programmes so far; grow `docs/programs.md`)
-- [ ] 3. Hand-label 5 programmes; fix schema
+- [ ] 3. Hand-label 5 programmes; fix schema — KAUST labelled (MS offering only); schema friction below
 - [ ] 4. Extraction + Programme page
 - [ ] 5. Verification checks 1–4 + confidence badges
 - [ ] 6. Label remaining ~25; `make eval`; baseline; Dashboard page
 - [ ] 7. Tracker + Review pages — **Tracker + status lifecycle done**; remaining: Review page (needs extraction), user profile (§6.1), funding badge on cards (needs step 4)
 - [ ] 8. Planner + Plan page + `.ics`
+
+### Step 3 — schema friction found while hand-labelling KAUST
+To handle in step 3 (plan mode):
+1. A deadline's meaning depends on several lines (section heading + eligibility line), so quotes must allow several lines.
+2. "Tentative" dates: needs a flag on the deadline.
+3. Application opening date (e.g. Round 2 opens 28 Sep 2026): no field.
+4. Semester start date: no field.
+5. Decision release dates: no field.
+6. One page covers several degree levels: deadlines have `eligible_levels`, and requirements need it too (applicability).
+7. Values from university-wide vs programme pages: need applicability/scope (D30).
+8. Several facts per deadline needed notes as a list.
+9. Programme identity: one URL → several offerings (D30).
 
 ## Numbers so far
 | Metric | Value | Date |
@@ -49,6 +61,7 @@ No toggle navigated away; no expansion stopped. Slowest pages: 40–60 s total (
 - Is the chars/4 + expected-output estimate good enough for the per-job guard? Measure once extraction runs.
 - Default `expected_output_tokens` (4000) and `VERIGRAD_MAX_COST_PER_JOB` ($0.30): tune after first real runs
 - **Step 4 — extraction input:** send `visible_text.txt` + PDFs to Claude, not `text.txt`? KFUPM's `text.txt` is ~120k chars (hidden menus) vs ~6.3k visible; accordions are already expanded, so visible text should hold the real content. Cheaper and safer against hidden-text injection; keep `text.txt` for verification checks. Decide and record in `docs/decisions.md` at step 4.
+- **Label format for several offerings per programme:** decide in step 3 (KAUST label currently covers the MS offering only).
 - **Shared-page staleness:** re-fetching a shared admissions page updates only that source; other programmes keep the older reused snapshot. Acceptable for v1; v2 weekly re-check should refresh all sources sharing a URL.
 
 ## Blockers / setup notes
@@ -64,4 +77,8 @@ Step 2 built (`feat/fetch`): `program_sources`, Playwright snapshots (HTML, text
 CI (`chore/ci`): GitHub Actions runs `ruff check`, `ruff format --check` and the full `pytest` suite with Chromium installed on every PR and push to `main`; no secrets, `live` excluded. README has the status badge.
 Snapshot provenance (`feat/snapshot-browser-info`): each `meta.json` records `browser: {name, version, channel}`. Snapshots taken before this have `null`.
 Tracker (`feat/tracker`): `core/tracker/` (lifecycle rules, cards, permanent delete), Tracker page with HTMX actions and filters, confirmed delete for dropped programmes that keeps shared snapshot folders and cost rows (D28, D29). Built ahead of steps 3–6 because it doesn't need extraction; the card's funding/eligibility slot waits for step 4.
-Next: grow `docs/programs.md` toward ~30 programmes and snapshot them (finishes step 2), then step 3 — hand-label 5 programmes and fix the schema.
+Direction change (`docs/discovery-offerings`, docs only): hand-labelling KAUST showed one programme's facts spread over 5–6 pages on two subdomains, and one page covering MS, MS/PhD and PhD. The user now tracks **offerings** (programme + degree level) with per-value applicability (D30), and v2 adds a **page discovery agent**: one URL → on-site pages → offerings (D31). Schema friction from the KAUST label is listed under step 3 above.
+Next:
+1. Build "add a source URL to an existing programme" (v1, spec §1.4 Flow A step 1) — needed to snapshot KAUST's missing pages.
+2. Continue labelling (and grow `docs/programs.md` toward ~30 programmes, which finishes step 2).
+3. Step 3 — fix the schema (offerings, applicability, the friction list above).
