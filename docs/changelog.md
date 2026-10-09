@@ -7,8 +7,9 @@ All notable changes, newest first.
 - Every status change records `status_changed_at`; restore clears the drop reason.
 - **Tracker** page: cards with name, university and country ("—" until step 4), host, status + date, source count, latest fetch outcome per source, link to snapshots, and an empty marked slot for the funding badge / eligibility warning (step 4). Buttons follow the status; HTMX swaps the card and updates tab counts out of band; results ask to confirm.
 - Permanent delete (dropped programmes only, confirm step, refused while a fetch job runs): removes rows and unused snapshot folders; a snapshot another programme reuses is handed over (oldest reusing row promoted); `llm_calls` kept with ids cleared. Decisions D28, D29.
+- Errors are shown on the card: a 409 (e.g. a stale page) or 404 returns the card re-read from the DB with the message on it (or a "no longer exists" note), with fresh buttons and counts; the tracker page tells htmx to swap 404/409; other failures (5xx, network) show a fallback message on the card. Non-HTMX requests still get a plain 409/404.
 - No schema change. No Claude calls.
-- Tests: 239 (92 new, none need a browser). Manual check on a throwaway instance (scratch data dir; example.com/.org/.net): full lifecycle, delete with a shared admissions snapshot, fetch success rate unchanged.
+- Tests: 242 (95 new, none need a browser). Manual check on a throwaway instance (scratch data dir; example.com/.org/.net): full lifecycle, delete with a shared admissions snapshot, fetch success rate unchanged.
 
 ## 2026-10-08 — snapshot meta records the browser (`feat/snapshot-browser-info`)
 - `meta.json` gains `browser: {name, version, channel}` (e.g. `chromium`, `141.0.7390.37`, `null` = Playwright's bundled build, or `msedge`/`chrome`), so a change in captured text can be traced to a browser upgrade or channel switch.

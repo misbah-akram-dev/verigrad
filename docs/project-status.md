@@ -24,7 +24,7 @@
 | Cost per programme | — | |
 | Cost estimate accuracy (`estimated_cost_usd` vs `cost_usd`) | — | |
 | Fetch success rate | **100%** — 8/8 sources (3 programmes), 0 blocked, 0 failed | 2026-10-07 |
-| Tests | 239 (no internet; 21 of them drive a real browser against a local fixture site). CI runs all of them on every PR, browser tests included | 2026-10-09 |
+| Tests | 242 (no internet; 21 of them drive a real browser against a local fixture site). CI runs all of them on every PR, browser tests included | 2026-10-09 |
 
 ### First real fetch run (2026-10-07, via the Add page, `make dev` with `--reload`)
 Browser: installed Edge (`VERIGRAD_BROWSER_CHANNEL=msedge`), because the Chromium download was blocked in that session; same Chromium engine. Delay 3 s per domain.

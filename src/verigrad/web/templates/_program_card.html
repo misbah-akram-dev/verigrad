@@ -38,6 +38,12 @@
     </div>
   </div>
 
+  {% if error %}
+  <p role="alert" data-error
+     class="mt-2 rounded border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm text-rose-800">{{ error }}</p>
+  {% endif %}
+  <p role="alert" data-client-error hidden
+     class="mt-2 rounded border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm text-rose-800"></p>
   {% if card.status not in current_filter.statuses %}
   <p class="mt-2 text-xs text-slate-500" data-moved>Moved to {{ card.status.value | capitalize }}; it leaves this list on the next load.</p>
   {% endif %}

@@ -175,21 +175,54 @@ def test_drop_with_reason_and_withdraw_default(web: TestClient, db: Engine) -> N
     assert '<span data-field="drop-reason">withdrawn</span>' in html
 
 
-def test_invalid_transition_is_409(web: TestClient, db: Engine) -> None:
+def test_tracker_page_swaps_error_responses(web: TestClient) -> None:
+    html = web.get("/tracker").text
+    assert '<meta name="htmx-config"' in html and '"code": "40[49]", "swap": true' in html
+    assert "showCardError" in html and "alert(" not in html
+
+
+def test_invalid_transition_is_409_with_the_message_on_a_fresh_card(
+    web: TestClient, db: Engine
+) -> None:
     program_id = seed(db, "https://s.example/")
-    response = post(web, program_id, "admit")
+    response = post(web, program_id, "admit", filter="saved")  # e.g. a stale page
     assert response.status_code == 409
-    assert "can't admit a programme that is SAVED" in response.text
+    html = response.text
+    assert "<html" not in html and f'id="program-{program_id}"' in html
+    assert 'role="alert" data-error' in html
+    assert "Not changed: can&#39;t admit a programme that is SAVED." in html
+    assert 'data-action="track"' in html  # buttons re-read from the DB
+    assert 'hx-swap-oob="true"' in html  # counts refreshed too
     assert status_of(db, program_id) == ProgramStatus.SAVED
 
 
-def test_unknown_programme_or_action_is_404(web: TestClient, db: Engine) -> None:
+def test_stale_card_for_a_deleted_programme_shows_a_note(web: TestClient, db: Engine) -> None:
+    for request in (
+        lambda: post(web, 999, "track"),
+        lambda: web.get("/tracker/programs/999/card", headers=HTMX),
+        lambda: web.get("/tracker/programs/999/delete", headers=HTMX),
+        lambda: web.post("/tracker/programs/999/delete", headers=HTMX),
+    ):
+        response = request()
+        assert response.status_code == 404
+        assert 'id="program-999"' in response.text and "data-gone" in response.text
+        assert "This programme no longer exists" in response.text
+
+
+def test_unknown_action_is_404_on_the_card(web: TestClient, db: Engine) -> None:
     program_id = seed(db, "https://s.example/")
-    assert post(web, program_id, "explode").status_code == 404
-    assert post(web, 999, "track").status_code == 404
+    response = post(web, program_id, "explode")
+    assert response.status_code == 404
+    assert "Unknown action: explode." in response.text and "data-error" in response.text
+
+
+def test_errors_without_htmx_stay_plain(web: TestClient, db: Engine) -> None:
+    program_id = seed(db, "https://s.example/")
+    conflict = web.post(f"/tracker/programs/{program_id}/admit")
+    assert conflict.status_code == 409 and conflict.headers["content-type"].startswith("text/plain")
+    assert web.post(f"/tracker/programs/{program_id}/explode").status_code == 404
+    assert web.post("/tracker/programs/999/track").status_code == 404
     assert web.get("/tracker/programs/999/card").status_code == 404
-    assert web.get("/tracker/programs/999/delete").status_code == 404
-    assert web.post("/tracker/programs/999/delete", headers=HTMX).status_code == 404
 
 
 def test_without_htmx_actions_redirect_back(web: TestClient, db: Engine) -> None:
@@ -256,7 +289,8 @@ def test_delete_refused_unless_dropped(web: TestClient, db: Engine) -> None:
     program_id = seed(db, "https://t.example/", ProgramStatus.TARGETING)
     response = web.post(f"/tracker/programs/{program_id}/delete", headers=HTMX)
     assert response.status_code == 409
-    assert "drop the programme before deleting it" in response.text
+    assert f'id="program-{program_id}"' in response.text and "data-error" in response.text
+    assert "Not deleted: drop the programme before deleting it permanently." in response.text
     assert status_of(db, program_id) == ProgramStatus.TARGETING
 
 
@@ -266,4 +300,5 @@ def test_delete_refused_while_a_job_runs(web: TestClient, db: Engine) -> None:
         repo.create_job(s, JobKind.FETCH, program_id)  # queued, never submitted
     response = web.post(f"/tracker/programs/{program_id}/delete", headers=HTMX)
     assert response.status_code == 409
+    assert "Not deleted: a fetch job for this programme is still running." in response.text
     assert status_of(db, program_id) == ProgramStatus.DROPPED

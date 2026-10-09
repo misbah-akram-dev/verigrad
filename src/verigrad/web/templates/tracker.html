@@ -1,5 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Tracker · Verigrad{% endblock %}
+{% block head %}
+{# Swap 404/409 responses: the server sends the card with the error message on it. Other errors
+   (5xx, network) are shown on the card by showCardError below. #}
+<meta name="htmx-config" content='{"responseHandling": [
+  {"code": "204", "swap": false},
+  {"code": "[23]..", "swap": true},
+  {"code": "40[49]", "swap": true, "error": false},
+  {"code": "[45]..", "swap": false, "error": true},
+  {"code": "...", "swap": false}]}'>
+{% endblock %}
 {% block content %}
 <div class="flex flex-wrap items-end justify-between gap-3">
   <div>
@@ -11,8 +21,16 @@
 
 <div class="mt-6">{% include "_tracker_tabs.html" %}</div>
 
+<script>
+  function showCardError(event, message) {
+    const card = event.detail.elt.closest("[id^='program-']");
+    const slot = card && card.querySelector("[data-client-error]");
+    if (slot) { slot.textContent = message; slot.hidden = false; }
+  }
+</script>
 <div id="tracker-cards" class="mt-4 space-y-3"
-     hx-on::response-error="alert(event.detail.xhr.responseText || 'Something went wrong')">
+     hx-on::response-error="showCardError(event, 'Something went wrong (HTTP ' + event.detail.xhr.status + '). Reload the page and try again.')"
+     hx-on::send-error="showCardError(event, 'Could not reach the app. Is it still running?')">
   {% for card in cards %}
   {% include "_program_card.html" %}
   {% else %}
