@@ -2,6 +2,14 @@
 
 All notable changes, newest first.
 
+## 2026-10-09 — docs: offerings + v2 page discovery (`docs/discovery-offerings`)
+- Direction change after hand-labelling KAUST: one programme's facts span 5–6 pages on two subdomains, and one page covers MS, MS/PhD and PhD.
+- D30: the user tracks **offerings** (programme + degree level), not pages; every value says which degree levels it applies to, or "not stated". Table changes decided in step 3.
+- D31: v2 **page discovery agent** — one URL → on-site links → relevant pages → snapshots → offerings. Same parent domain, page/depth caps, robots + delay + fetch-once, per-job cost guard; its only tool fetches links code already found. Measured by page recall, offering recall, pages and cost per discovery. D5's table gains a row.
+- Spec v0.5: module 1 (v1 → v2) vs module 8, Flow A (v2), v2 table row, step 3 row, `discover/` in §3.2, offerings note in §4.1, label `sources`/`missing_sources` as discovery ground truth (§8.1), defence layer 5 (§10.2), open question 6.
+- Project status: KAUST schema friction (9 items) listed under step 3; new open question on the label format for several offerings; next steps reordered (add-a-source-URL first).
+- No code or test changes.
+
 ## 2026-10-09 — v1 step 7 (part): Tracker + status lifecycle (`feat/tracker`)
 - `core/tracker/status.py`: transition table per spec §6 plus undo result (`ADMITTED`/`REJECTED` → `APPLIED`) and withdraw (`APPLIED` → `DROPPED`, default reason "withdrawn"); restore → `TARGETING`; invalid transitions raise. Filters: Targeting (default), Saved, Applied (incl. results), Dropped, All.
 - Every status change records `status_changed_at`; restore clears the drop reason.

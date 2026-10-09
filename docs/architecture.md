@@ -58,6 +58,7 @@ Blocked/failed source ─► upload ─► manual_import (offline render) ─►
 | `core/tracker/` | `status` (lifecycle transitions, filters, drop reasons; pure), `service` (cards, actions, delete preview + delete), `files` (snapshot folder removal, only inside `data/snapshots/`) | Done (step 7, tracker part) |
 | `core/plan/` | Backwards planning, timezones, `.ics` | Not started |
 | `core/spider/` | (v2) Selector generation/repair, re-checks | Not started |
+| `core/discover/` | (v2) Page discovery agent: one URL → on-site links (same parent domain, page/depth caps) → relevant pages → snapshots via `core/fetch/` (D31) | Not started |
 | `evals/` | `python -m verigrad.evals` | Placeholder |
 
 ## Web (`src/verigrad/web/`)
@@ -101,4 +102,6 @@ Delete (DROPPED only) ─► GET …/delete: footprint (rows, folders to remove,
 | 2026-10-07 | New `eligibility_restrictions: list[Evidence[Restriction]]` (nationality/gender/religious/other); unstated → `"unknown"`, never assumed absent; the picker flags a programme "not eligible" when a restriction excludes my profile | Real programmes exist with nationality- or gender-based restrictions that exclude the user outright; must surface this instead of silently tracking an inapplicable programme (spec §4.1, §6.1, `docs/programs.md`) |
 | 2026-10-09 | Status lifecycle = spec §6 + undo result + withdraw; restore → TARGETING; Applied filter includes results | Mis-recorded results must be fixable; withdrawing is a real step (D29) |
 | 2026-10-09 | Permanent delete only for DROPPED; reused snapshot handed to the oldest reusing row; `llm_calls` kept with ids cleared; folders removed only when unused | Safe two-step delete that keeps shared pages, the fetch success rate and total spend correct (D28) |
+| 2026-10-09 | The user tracks **offerings** (programme + degree level), not pages: extraction returns `offerings: list[Offering]`, each value with an applicability (degree levels or "not stated"); tables decided in step 3 | One page covers several degree levels and one offering's facts span several pages (D30) |
+| 2026-10-09 | v2 page discovery agent (`core/discover/`): its only tool fetches already-found, same-site links | One pasted URL should be enough; link-following stays on-site and can't be redirected by a page (D31) |
 | 2026-10-08 | GitHub Actions CI (lint + full `pytest`, Chromium installed); `VERIGRAD_REQUIRE_BROWSER=1` turns browser-test skips into failures; no secrets, `live` excluded | Browser tests must actually run somewhere on every PR; no API key in CI |

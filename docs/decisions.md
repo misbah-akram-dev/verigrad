@@ -6,6 +6,12 @@
 
 ## 1. Scope
 
+### D30 — The user tracks offerings, not pages (2026-10-09)
+**Decision:** Extraction returns a list of **offerings** found across a programme's pages. An offering is one application a person can submit: programme name + degree level (MS, MS/PhD, PhD…) + its intakes/deadlines, requirements, fees and funding. I tick the offerings I care about; those go to the Tracker. Snapshots and pages stay as evidence behind each value, never a step I have to go through.
+**Why:** Hand-labelling KAUST showed one programme's facts spread over 5–6 pages on two subdomains, and KAUST's timelines page covers MS, MS/PhD and PhD at once (Round 1 is PhD-only). One-URL-one-programme forces a wrong identity. Pages are shared between offerings, which is already supported: a shared URL is fetched once and reused (D22).
+**Applicability:** Facts may come from university-wide pages (requirements, duration, fees) rather than a programme page. Each value says which degree levels it applies to, or "not stated" — never an assumed "applies to all".
+**Impact:** Step 3's schema change designs extraction output as `offerings: list[Offering]` with per-value applicability. Tracker and status work on offerings. Exact table changes are decided in step 3 (plan mode), not here.
+
 ### D1 — Paste-a-URL instead of a searchable programme database (2026-10-05)
 **Decision:** v1 adds programmes by pasting URLs. No study-portal-style search over thousands of programmes.
 **Why:** A searchable database means building and maintaining a large scraper of third-party portals — a scraping project, not an AI one, with terms-of-service risk and constant data upkeep. It would consume the month without demonstrating AI engineering.
@@ -25,6 +31,20 @@
 ---
 
 ## 2. Getting and reading pages
+
+### D31 — Autonomous page discovery from one URL (v2) (2026-10-09)
+**Decision:** I paste one URL. A discovery agent fetches it, collects its links, decides by itself which pages are relevant (deadlines, requirements, fees, funding, programme details), follows them and snapshots them; extraction then runs over all of them. I am never asked to choose pages.
+**Guardrails:**
+- Stays on the same site (same parent domain, e.g. `*.kaust.edu.sa`).
+- Max pages per discovery job and max link depth are config values (e.g. 15 pages, depth 3).
+- robots.txt, the per-domain delay and fetch-once reuse still apply (D8, D22, D23).
+- The per-job cost guard (D17) covers the agent's Claude calls.
+- The agent's only tool is "fetch this URL", restricted to links code has already found on fetched pages within the allowed domains, so a malicious page can't send it anywhere else or make it act. Page content stays untrusted data (D12).
+
+**Transparency:** Each offering shows a collapsible "pages used" list with why each page was chosen. A manual "add a URL to this programme" fallback covers misses.
+**Measured:** page recall (did it find the pages a human needed — the `sources` + `missing_sources` recorded in each hand label), offering recall (did it find every MS / MS-PhD / PhD offering), pages fetched and cost per discovery.
+**Rejected:** showing me a list of candidate pages/snapshots to approve (I shouldn't have to judge pages); using web search for this (links on the university's own site are cheaper, deterministic and stay on-site — web search stays with the separate "Find programmes" module 8).
+**Relation to D1/D5:** Page discovery within a site is link-following, not web search; D1's web-search discovery is about finding *new* programmes. D5's table has a row for each.
 
 ### D21 — Fetch jobs run on their own thread and event loop (2026-10-07)
 **Decision:** A single worker thread runs every background job in its own `asyncio.Runner`, with a ProactorEventLoop on Windows, using Playwright's async API. Playwright never runs on FastAPI's event loop.
@@ -61,7 +81,8 @@
 | Extract (step 4) | **Claude Messages API** | Reads the *saved* snapshot text and returns structured fields + source quotes. No web access. |
 | Verify (step 5) | **Code** | Checks Claude's output against the snapshot. |
 | Re-check (v2) | **Selector spider** | Agent-written selectors re-run cheaply; Claude re-reads only changed fields. |
-| Discover (v2, optional) | **Claude web search** | Finds candidate programme URLs. |
+| Page discovery (v2) | **Claude + domain-restricted fetch** | From one pasted URL, follows on-site links already found on fetched pages to the pages that hold the programme's facts. Not web search (D31). |
+| Find programmes (v2, optional) | **Claude web search** | Finds candidate programme URLs. |
 
 **Why not let Claude web-fetch pages during extraction:** (a) evals need frozen inputs — the same snapshot gives comparable scores over time; (b) verification needs to check quotes against exactly what Claude saw; (c) no tools during extraction means a malicious page can't make Claude act; (d) Playwright fetching is free, Claude fetching costs tokens; (e) web fetch gives no screenshot, no visibility data (needed for the hidden-text check) and no HTML for the v2 spider.
 **Possible later experiment:** web fetch as a fallback for blocked pages, measured against Playwright on the same pages.
