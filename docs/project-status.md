@@ -4,7 +4,7 @@
 
 **Current milestone:** v1 — Extraction engine + web app
 **Target:** v1 demo by end of week 2 (may run into early week 3)
-**Last session:** 2026-10-08 — GitHub Actions CI added on `chore/ci` (lint + full test suite, browser tests run in CI)
+**Last session:** 2026-10-08 — GitHub Actions CI added on `chore/ci` (lint + full test suite, browser tests run in CI); snapshot `meta.json` records the browser (`feat/snapshot-browser-info`)
 
 ## v1 build steps (spec §2)
 - [x] 1. Repo setup, LLM wrapper, extraction schema, SQLite store, FastAPI skeleton
@@ -24,7 +24,7 @@
 | Cost per programme | — | |
 | Cost estimate accuracy (`estimated_cost_usd` vs `cost_usd`) | — | |
 | Fetch success rate | **100%** — 8/8 sources (3 programmes), 0 blocked, 0 failed | 2026-10-07 |
-| Tests | 144 (no internet; 21 of them drive a real browser against a local fixture site). CI runs all 144 on every PR, browser tests included | 2026-10-08 |
+| Tests | 147 (no internet; 21 of them drive a real browser against a local fixture site). CI runs all of them on every PR, browser tests included | 2026-10-08 |
 
 ### First real fetch run (2026-10-07, via the Add page, `make dev` with `--reload`)
 Browser: installed Edge (`VERIGRAD_BROWSER_CHANNEL=msedge`), because the Chromium download was blocked in that session; same Chromium engine. Delay 3 s per domain.
@@ -62,4 +62,5 @@ Step 1 done: uv project (Python 3.12), Makefile, `core/llm/` wrapper (retries ho
 Docs-only update (`docs/funding-and-sources`): spec records multiple sources per programme (`program_sources`), extraction-never-filters rule, `funding_options` + `eligibility_restrictions` schema, and the user-profile + primary-deadline picker with "not eligible" flagging (spec §4.1, §4.2, §6.1, §7). `docs/programs.md` created with the first 3 golden-set programmes plus a Rejected section.
 Step 2 built (`feat/fetch`): `program_sources`, Playwright snapshots (HTML, text, visible text, screenshot, same-site JSON/PDFs, `meta.json`), polite fetching (robots.txt, per-domain delay, fetch once + reuse, explicit Re-fetch), block detection, manual import, background job runner, Add page with polling panel. Decisions D21–D27 in `docs/decisions.md`.
 CI (`chore/ci`): GitHub Actions runs `ruff check`, `ruff format --check` and the full `pytest` suite with Chromium installed on every PR and push to `main`; no secrets, `live` excluded. README has the status badge.
+Snapshot provenance (`feat/snapshot-browser-info`): each `meta.json` records `browser: {name, version, channel}`. Snapshots taken before this have `null`.
 Next: grow `docs/programs.md` toward ~30 programmes and snapshot them (finishes step 2), then step 3 — hand-label 5 programmes and fix the schema.

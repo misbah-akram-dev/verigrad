@@ -1,11 +1,14 @@
-"""Browser-free fetch helpers: text, block rules, robots, throttle, site rule."""
+"""Browser-free fetch helpers: text, block rules, robots, throttle, site rule, meta."""
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 
 from verigrad.core.fetch.blocking import PageSignals, classify
+from verigrad.core.fetch.models import BrowserInfo, SnapshotMeta
 from verigrad.core.fetch.polite import DomainThrottle, RobotsChecker, same_site, site_key
+from verigrad.core.fetch.snapshot import browser_info
 from verigrad.core.fetch.text import content_hash, html_to_text, page_title
 from verigrad.core.store.models import FetchOutcome
 
@@ -219,3 +222,25 @@ def test_throttle_honours_longer_crawl_delay() -> None:
         assert await throttle.wait("https://u.example/b", min_delay=7.0) == pytest.approx(7.0)
 
     asyncio.run(run())
+
+
+# --- meta: browser info ------------------------------------------------------------------
+
+
+def _fake_browser(name: str, version: str) -> SimpleNamespace:
+    return SimpleNamespace(browser_type=SimpleNamespace(name=name), version=version)
+
+
+def test_browser_info_bundled_chromium_has_no_channel() -> None:
+    info = browser_info(_fake_browser("chromium", "141.0.7390.37"), "")  # type: ignore[arg-type]
+    assert info == BrowserInfo(name="chromium", version="141.0.7390.37", channel=None)
+
+
+def test_browser_info_records_an_installed_channel() -> None:
+    info = browser_info(_fake_browser("chromium", "141.0.3537.71"), "msedge")  # type: ignore[arg-type]
+    assert (info.channel, info.version) == ("msedge", "141.0.3537.71")
+
+
+def test_meta_json_written_before_browser_info_still_loads() -> None:
+    meta = SnapshotMeta.model_validate({"url": "https://example.edu/", "outcome": "SUCCESS"})
+    assert meta.browser is None

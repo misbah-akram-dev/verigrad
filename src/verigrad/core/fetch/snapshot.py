@@ -31,6 +31,7 @@ from verigrad.core.fetch.models import (
     SCREENSHOT,
     TEXT,
     VISIBLE_TEXT,
+    BrowserInfo,
     SavedFile,
     SkippedLink,
     SnapshotFiles,
@@ -62,6 +63,13 @@ async def launch_browser(pw: Playwright, channel: str = "") -> Browser:
     """Playwright's Chromium with default settings: headless, default user agent, no stealth
     (D8). `channel` ("msedge"/"chrome") uses an installed browser instead of the bundled one."""
     return await pw.chromium.launch(channel=channel or None)
+
+
+def browser_info(browser: Browser, channel: str) -> BrowserInfo:
+    """Name, version and channel of a launched browser, for meta.json."""
+    return BrowserInfo(
+        name=browser.browser_type.name, version=browser.version, channel=channel or None
+    )
 
 
 def robots_fetcher(api: APIRequestContext, timeout_s: float) -> RobotsFetcher:
@@ -102,7 +110,10 @@ async def snapshot_source(
     folder: Path,
     politeness: Politeness,
     timeout_s: float,
+    *,
+    channel: str,
 ) -> SnapshotResult:
+    """`channel` must be the one `browser` was launched with (recorded in meta.json)."""
     folder.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
     meta = SnapshotMeta(url=url, outcome=FetchOutcome.FAILED)
@@ -113,6 +124,7 @@ async def snapshot_source(
         meta.outcome, meta.reason = FetchOutcome.BLOCKED, refusal
         return _finish(folder, meta, files, started)
 
+    meta.browser = browser_info(browser, channel)
     context = await browser.new_context()
     try:
         await _capture(context, url, folder, politeness, timeout_s, meta, files)

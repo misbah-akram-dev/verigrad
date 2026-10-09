@@ -150,7 +150,12 @@ async def _snapshot(
     folder = new_snapshot_folder(settings.data_dir, source.program_id, _id(source))
     try:
         return await snapshot_source(
-            browser, source.url, folder, politeness, settings.fetch_timeout_seconds
+            browser,
+            source.url,
+            folder,
+            politeness,
+            settings.fetch_timeout_seconds,
+            channel=settings.browser_channel,
         )
     except Exception as exc:  # one bad page must not stop the other sources
         log.exception("snapshot crashed for %s", source.url)

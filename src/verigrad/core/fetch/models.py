@@ -19,6 +19,15 @@ class PrepStats(BaseModel):
     expansion_stopped: bool = False
 
 
+class BrowserInfo(BaseModel):
+    """The browser that rendered the page: rendering (and so the captured text) can change
+    between browser builds, so every snapshot records which one it came from."""
+
+    name: str  # Playwright browser type, e.g. "chromium"
+    version: str  # e.g. "141.0.7390.37"
+    channel: str | None = None  # "msedge"/"chrome" = installed browser; None = Playwright's own
+
+
 class SavedFile(BaseModel):
     path: str  # relative to the snapshot folder
     url: str
@@ -38,6 +47,7 @@ class SnapshotMeta(BaseModel):
     reason: str | None = None
     error: str | None = None
     imported_manually: bool = False
+    browser: BrowserInfo | None = None  # None when no browser rendered it (robots refusal, PDF)
     fetched_at: datetime = Field(default_factory=utcnow)
     timings_ms: dict[str, int] = Field(default_factory=dict)
     title: str = ""

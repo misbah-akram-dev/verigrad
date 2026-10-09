@@ -28,7 +28,9 @@ async def _snapshot(url: str, folder: Path) -> SnapshotResult:
         api = await pw.request.new_context()
         try:
             politeness = Politeness(RobotsChecker(robots_fetcher(api, 10)), DomainThrottle(0))
-            return await snapshot_source(browser, url, folder, politeness, timeout_s=15)
+            return await snapshot_source(
+                browser, url, folder, politeness, timeout_s=15, channel=BROWSER_CHANNEL
+            )
         finally:
             await api.dispose()
             await browser.close()
@@ -55,6 +57,8 @@ def test_normal_page(site: FixtureSite, tmp_path: Path) -> None:
     assert meta.content_hash and meta.screenshot
     saved = SnapshotMeta.model_validate(json.loads(read(result, "meta.json")))
     assert saved.outcome == FetchOutcome.SUCCESS and saved.timings_ms["total"] > 0
+    assert saved.browser is not None and saved.browser.name == "chromium"
+    assert saved.browser.version and saved.browser.channel == (BROWSER_CHANNEL or None)
 
 
 def test_accordions_are_expanded_and_navigation_is_undone(
@@ -139,6 +143,7 @@ def test_robots_disallowed_page_is_never_requested(site: FixtureSite, tmp_path: 
     assert site.hits["/private/page.html"] == 0
     assert not (result.folder / "page.html").exists()
     assert (result.folder / "meta.json").exists()
+    assert result.meta.browser is None  # no browser touched the page
 
 
 def test_unreachable_host_fails_with_the_network_reason(tmp_path: Path) -> None:
