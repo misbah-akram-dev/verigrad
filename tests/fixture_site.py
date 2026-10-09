@@ -8,13 +8,22 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 SITE_DIR = Path(__file__).parent / "fixtures" / "site"
 BROWSER_CHANNEL = os.environ.get("VERIGRAD_BROWSER_CHANNEL") or ""
 TINY_PDF = b"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
 ROBOTS = "User-agent: *\nDisallow: /private/\n"
 DEADLINES = {"rounds": [{"name": "Round 1", "deadline": "JSON_ROUND 15 January 2027"}]}
+# A real-world path shape: KAUST's admissions site has /study/master's-degree.
+APOSTROPHE_PATH = "/study/master's-degree"
+APOSTROPHE_PAGE = (
+    b"<!doctype html><html><head><title>Master's degree</title></head><body>"
+    b"<h1>Master's degree</h1><p>APOSTROPHE_MARKER The master's programme admits students in "
+    b"two rounds. Round 1 closes on 1 November 2026 and Round 2 closes on 3 January 2027. "
+    b"Applicants need a bachelor's degree, transcripts, two recommendation letters and an "
+    b"English test score.</p></body></html>"
+)
 
 
 class FixtureSite:
@@ -39,7 +48,8 @@ def _handler(site_holder: list[FixtureSite]) -> type[SimpleHTTPRequestHandler]:
             pass
 
         def do_GET(self) -> None:
-            path = urlsplit(self.path).path
+            # Decoded, so a path matches whether or not the browser percent-encoded it.
+            path = unquote(urlsplit(self.path).path)
             site_holder[0].hits[path] += 1
             routes = {
                 "/robots.txt": (200, "text/plain", ROBOTS.encode()),
@@ -48,6 +58,7 @@ def _handler(site_holder: list[FixtureSite]) -> type[SimpleHTTPRequestHandler]:
                 "/api/deadlines.json": (200, "application/json", json.dumps(DEADLINES).encode()),
                 "/api/tracking.json": (200, "application/json", b'{"visitor": "x"}'),
                 "/docs/rules.pdf": (200, "application/pdf", TINY_PDF),
+                APOSTROPHE_PATH: (200, "text/html; charset=utf-8", APOSTROPHE_PAGE),
             }
             if path in routes:
                 status, content_type, body = routes[path]

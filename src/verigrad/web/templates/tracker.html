@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Tracker · Verigrad{% endblock %}
 {% block head %}
-{# Swap 404/409 responses: the server sends the card with the error message on it. Other errors
+{# Swap 404/409/422 responses: the server sends the card with the error message on it. Other errors
    (5xx, network) are shown on the card by showCardError below. #}
 <meta name="htmx-config" content='{"responseHandling": [
   {"code": "204", "swap": false},
   {"code": "[23]..", "swap": true},
-  {"code": "40[49]", "swap": true, "error": false},
+  {"code": "4(04|09|22)", "swap": true, "error": false},
   {"code": "[45]..", "swap": false, "error": true},
   {"code": "...", "swap": false}]}'>
 {% endblock %}

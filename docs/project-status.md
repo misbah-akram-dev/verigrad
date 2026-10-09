@@ -4,11 +4,11 @@
 
 **Current milestone:** v1 — Extraction engine + web app
 **Target:** v1 demo by end of week 2 (may run into early week 3)
-**Last session:** 2026-10-09 — docs: offerings + v2 page discovery direction (`docs/discovery-offerings`, D30, D31), after hand-labelling KAUST
+**Last session:** 2026-10-09 — add a source URL to an existing programme (`feat/add-source`)
 
 ## v1 build steps (spec §2)
 - [x] 1. Repo setup, LLM wrapper, extraction schema, SQLite store, FastAPI skeleton
-- [x] 2. Fetch + snapshots + Add page — built; **remaining:** snapshot ~30 real programme pages (8 pages / 3 programmes so far; grow `docs/programs.md`)
+- [x] 2. Fetch + snapshots + Add page + add a source to an existing programme — built; **remaining:** snapshot ~30 real programme pages (8 pages / 3 programmes so far; grow `docs/programs.md`)
 - [ ] 3. Hand-label 5 programmes; fix schema — KAUST labelled (MS offering only); schema friction below
 - [ ] 4. Extraction + Programme page
 - [ ] 5. Verification checks 1–4 + confidence badges
@@ -36,7 +36,7 @@ To handle in step 3 (plan mode):
 | Cost per programme | — | |
 | Cost estimate accuracy (`estimated_cost_usd` vs `cost_usd`) | — | |
 | Fetch success rate | **100%** — 8/8 sources (3 programmes), 0 blocked, 0 failed | 2026-10-07 |
-| Tests | 242 (no internet; 21 of them drive a real browser against a local fixture site). CI runs all of them on every PR, browser tests included | 2026-10-09 |
+| Tests | 255 (no internet; 23 of them drive a real browser against a local fixture site). CI runs all of them on every PR, browser tests included | 2026-10-09 |
 
 ### First real fetch run (2026-10-07, via the Add page, `make dev` with `--reload`)
 Browser: installed Edge (`VERIGRAD_BROWSER_CHANNEL=msedge`), because the Chromium download was blocked in that session; same Chromium engine. Delay 3 s per domain.
@@ -62,6 +62,8 @@ No toggle navigated away; no expansion stopped. Slowest pages: 40–60 s total (
 - Default `expected_output_tokens` (4000) and `VERIGRAD_MAX_COST_PER_JOB` ($0.30): tune after first real runs
 - **Step 4 — extraction input:** send `visible_text.txt` + PDFs to Claude, not `text.txt`? KFUPM's `text.txt` is ~120k chars (hidden menus) vs ~6.3k visible; accordions are already expanded, so visible text should hold the real content. Cheaper and safer against hidden-text injection; keep `text.txt` for verification checks. Decide and record in `docs/decisions.md` at step 4.
 - **Label format for several offerings per programme:** decide in step 3 (KAUST label currently covers the MS offering only).
+- **Card's "snapshots" link after Add source / Re-fetch:** it opens the latest job, which lists only the source that job fetched, not all of the programme's sources. Fine for now; revisit with the Programme page (step 4).
+- **URL spelling variants:** `normalise_url` doesn't percent-decode, so `master's-degree` and `master%27s-degree` count as different URLs (duplicate check and snapshot reuse miss the match). Not seen in practice yet.
 - **Shared-page staleness:** re-fetching a shared admissions page updates only that source; other programmes keep the older reused snapshot. Acceptable for v1; v2 weekly re-check should refresh all sources sharing a URL.
 
 ## Blockers / setup notes
@@ -78,7 +80,7 @@ CI (`chore/ci`): GitHub Actions runs `ruff check`, `ruff format --check` and the
 Snapshot provenance (`feat/snapshot-browser-info`): each `meta.json` records `browser: {name, version, channel}`. Snapshots taken before this have `null`.
 Tracker (`feat/tracker`): `core/tracker/` (lifecycle rules, cards, permanent delete), Tracker page with HTMX actions and filters, confirmed delete for dropped programmes that keeps shared snapshot folders and cost rows (D28, D29). Built ahead of steps 3–6 because it doesn't need extraction; the card's funding/eligibility slot waits for step 4.
 Direction change (`docs/discovery-offerings`, docs only): hand-labelling KAUST showed one programme's facts spread over 5–6 pages on two subdomains, and one page covering MS, MS/PhD and PhD. The user now tracks **offerings** (programme + degree level) with per-value applicability (D30), and v2 adds a **page discovery agent**: one URL → on-site pages → offerings (D31). Schema friction from the KAUST label is listed under step 3 above.
+Add a source (`feat/add-source`): each Tracker card has **＋ Add source** (URL + role) that attaches one `program_sources` row to the existing programme and starts a fetch job for just that URL, through the normal job page (same robots/delay/timeout, same shared-URL reuse). A URL already on the programme is refused (409, on the card); the same URL on another programme is allowed and reused. Cards now list their sources with each one's latest outcome. Manual check on a scratch data dir: KAUST `admissions.kaust.edu.sa/study/master's-degree` (apostrophe in the path) saved, HTTP 200, 6.3k visible chars; adding it to a second programme reused the snapshot.
 Next:
-1. Build "add a source URL to an existing programme" (v1, spec §1.4 Flow A step 1) — needed to snapshot KAUST's missing pages.
-2. Continue labelling (and grow `docs/programs.md` toward ~30 programmes, which finishes step 2).
-3. Step 3 — fix the schema (offerings, applicability, the friction list above).
+1. Use Add source to snapshot KAUST's missing pages; continue labelling (and grow `docs/programs.md` toward ~30 programmes, which finishes step 2).
+2. Step 3 — fix the schema (offerings, applicability, the friction list above).

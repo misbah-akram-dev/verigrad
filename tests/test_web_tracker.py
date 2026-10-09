@@ -3,12 +3,14 @@
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from verigrad.config import Settings
+from verigrad.core.fetch.actions import MAX_SOURCES
 from verigrad.core.store import repository as repo
 from verigrad.core.store.models import (
     FetchOutcome,
+    Job,
     JobKind,
     Program,
     ProgramStatus,
@@ -177,7 +179,7 @@ def test_drop_with_reason_and_withdraw_default(web: TestClient, db: Engine) -> N
 
 def test_tracker_page_swaps_error_responses(web: TestClient) -> None:
     html = web.get("/tracker").text
-    assert '<meta name="htmx-config"' in html and '"code": "40[49]", "swap": true' in html
+    assert '<meta name="htmx-config"' in html and '"code": "4(04|09|22)", "swap": true' in html
     assert "showCardError" in html and "alert(" not in html
 
 
@@ -302,3 +304,156 @@ def test_delete_refused_while_a_job_runs(web: TestClient, db: Engine) -> None:
     assert response.status_code == 409
     assert "Not deleted: a fetch job for this programme is still running." in response.text
     assert status_of(db, program_id) == ProgramStatus.DROPPED
+
+
+# --- add a source to an existing programme ------------------------------------------------
+
+KAUST_MASTERS = "https://admissions.kaust.edu.sa/study/master's-degree"
+
+
+@pytest.fixture
+def submitted(web: TestClient, monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Job ids handed to the runner. The work never runs: no browser, no network."""
+    job_ids: list[int] = []
+    runner = web.app.state.runner  # type: ignore[attr-defined]
+    monkeypatch.setattr(runner, "submit", lambda job_id, work: job_ids.append(job_id))
+    return job_ids
+
+
+def add_source(web: TestClient, program_id: int, url: str, role: str = "admissions", **kw):  # type: ignore[no-untyped-def]
+    data = {"url": url, "role": role, "filter": "all"}
+    return web.post(
+        f"/tracker/programs/{program_id}/sources", data=data, follow_redirects=False, **kw
+    )
+
+
+def sources_of(engine: Engine, program_id: int) -> list[tuple[str, SourceRole]]:
+    with Session(engine) as s:
+        return [(src.url, src.role) for src in repo.list_sources(s, program_id)]
+
+
+def jobs_of(engine: Engine, program_id: int) -> list[Job]:
+    with Session(engine) as s:
+        return list(s.exec(select(Job).where(Job.program_id == program_id)))
+
+
+def test_add_source_creates_one_source_and_one_fetch_job(
+    web: TestClient, db: Engine, submitted: list[int]
+) -> None:
+    program_id = seed(db, "https://cs.uni.example/msc", extra=[(SHARED, SourceRole.ADMISSIONS)])
+    before = sources_of(db, program_id)
+
+    response = add_source(web, program_id, "https://Grad.uni.example/fees#tuition", "fees")
+
+    assert response.status_code == 303
+    jobs = jobs_of(db, program_id)
+    assert len(jobs) == 1 and jobs[0].kind == JobKind.FETCH
+    assert response.headers["location"] == f"/add/jobs/{jobs[0].id}"
+    assert submitted == [jobs[0].id]
+    assert sources_of(db, program_id) == [
+        *before,
+        ("https://grad.uni.example/fees", SourceRole.FEES),
+    ]
+
+
+def test_add_source_with_htmx_redirects_to_the_job_page(
+    web: TestClient, db: Engine, submitted: list[int]
+) -> None:
+    program_id = seed(db, "https://cs.uni.example/msc")
+    response = add_source(web, program_id, "https://cs.uni.example/apply", headers=HTMX)
+    assert response.status_code == 204
+    assert response.headers["HX-Redirect"] == f"/add/jobs/{submitted[0]}"
+
+
+def test_add_source_rejects_a_url_already_on_this_programme(
+    web: TestClient, db: Engine, submitted: list[int]
+) -> None:
+    program_id = seed(db, "https://cs.uni.example/x")
+    response = add_source(web, program_id, "https://CS.uni.example/x#y", headers=HTMX)
+    assert response.status_code == 409
+    html = response.text
+    assert f'id="program-{program_id}"' in html and "data-error" in html
+    assert "https://cs.uni.example/x is already a source of this programme." in html
+    assert 'value="https://CS.uni.example/x#y"' in html  # what was typed is kept
+    assert len(sources_of(db, program_id)) == 1 and not jobs_of(db, program_id)
+    assert submitted == []
+
+
+def test_add_source_allows_a_url_shared_with_another_programme(
+    web: TestClient, db: Engine, submitted: list[int]
+) -> None:
+    seed(db, "https://a.example/", extra=[(SHARED, SourceRole.ADMISSIONS)])
+    b = seed(db, "https://b.example/")
+    assert add_source(web, b, SHARED).status_code == 303
+    assert (SHARED, SourceRole.ADMISSIONS) in sources_of(db, b)
+    assert len(submitted) == 1
+
+
+@pytest.mark.parametrize(
+    ("url", "role", "message"),
+    [
+        ("not a url", "admissions", "Not a valid http(s) URL: not a url"),
+        ("ftp://uni.example/file", "admissions", "Not a valid http(s) URL"),
+        ("https://uni.example/x", "bogus", "Unknown role for https://uni.example/x: bogus"),
+    ],
+)
+def test_add_source_invalid_input_is_422_on_the_card(
+    web: TestClient, db: Engine, submitted: list[int], url: str, role: str, message: str
+) -> None:
+    program_id = seed(db, "https://s.example/")
+    response = add_source(web, program_id, url, role, headers=HTMX)
+    assert response.status_code == 422
+    assert message in response.text and "data-error" in response.text
+    assert len(sources_of(db, program_id)) == 1 and submitted == []
+
+
+def test_add_source_refused_at_the_source_limit(
+    web: TestClient, db: Engine, submitted: list[int]
+) -> None:
+    extra = [(f"https://s.example/{n}", SourceRole.OTHER) for n in range(MAX_SOURCES - 1)]
+    program_id = seed(db, "https://s.example/", extra=extra)
+    response = add_source(web, program_id, "https://s.example/one-more", headers=HTMX)
+    assert response.status_code == 409
+    assert f"At most {MAX_SOURCES} URLs per programme." in response.text
+    assert submitted == []
+
+
+def test_add_source_to_a_missing_programme(web: TestClient, submitted: list[int]) -> None:
+    response = add_source(web, 999, "https://s.example/x", headers=HTMX)
+    assert response.status_code == 404 and "This programme no longer exists" in response.text
+    assert add_source(web, 999, "https://s.example/x").status_code == 404
+    assert submitted == []
+
+
+def test_card_lists_sources_and_the_new_one(
+    web: TestClient, db: Engine, submitted: list[int]
+) -> None:
+    program_id = seed(db, "https://cs.uni.example/msc")
+    card = web.get("/tracker?filter=all").text.split(f'id="program-{program_id}"', 1)[1]
+    assert 'data-action="add-source"' in card
+    assert f'hx-post="/tracker/programs/{program_id}/sources"' in card
+
+    add_source(web, program_id, "https://grad.uni.example/scholarships", "scholarship")
+
+    card = web.get("/tracker?filter=all").text.split(f'id="program-{program_id}"', 1)[1]
+    card = card.split("</article>", 1)[0]
+    assert "2 sources" in card and "2 not fetched" in card
+    sources = card.split("data-sources", 1)[1].split("</details>", 1)[0]
+    assert 'href="https://grad.uni.example/scholarships"' in sources
+    assert "scholarship" in sources and "not fetched" in sources
+
+
+def test_add_source_accepts_a_url_with_an_apostrophe(
+    web: TestClient, db: Engine, submitted: list[int]
+) -> None:
+    program_id = seed(db, "https://cs.kaust.edu.sa/")
+    assert add_source(web, program_id, KAUST_MASTERS).status_code == 303
+    assert (KAUST_MASTERS, SourceRole.ADMISSIONS) in sources_of(db, program_id)
+
+    card = web.get("/tracker?filter=all").text.split(f'id="program-{program_id}"', 1)[1]
+    escaped = "https://admissions.kaust.edu.sa/study/master&#39;s-degree"
+    assert f'href="{escaped}"' in card and f">{escaped}</a>" in card
+
+    again = add_source(web, program_id, KAUST_MASTERS, headers=HTMX)
+    assert again.status_code == 409 and "already a source of this programme" in again.text
+    assert len(submitted) == 1

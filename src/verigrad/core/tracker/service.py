@@ -37,6 +37,13 @@ class JobRunning(ValueError):
     """A fetch job for this programme is still queued or running."""
 
 
+class SourceLine(BaseModel):
+    id: int
+    url: str
+    role: str
+    label: str  # latest snapshot outcome (OUTCOME_LABELS) or NOT_FETCHED
+
+
 class ProgramCard(BaseModel):
     id: int
     name: str
@@ -49,6 +56,7 @@ class ProgramCard(BaseModel):
     drop_reason: str | None = None
     source_count: int = 0
     fetch_summary: dict[str, int] = {}
+    sources: list[SourceLine] = []
     latest_job_id: int | None = None
     actions: list[TrackerAction] = []
 
@@ -154,6 +162,18 @@ def _card(session: Session, program: Program, source_count: int) -> ProgramCard:
             summary[label] = n
     if not_fetched := source_count - len(latest):
         summary[NOT_FETCHED] = not_fetched
+    sources = [
+        SourceLine(
+            id=source.id,
+            url=source.url,
+            role=source.role.value,
+            label=OUTCOME_LABELS[latest[source.id].fetch_outcome]
+            if source.id in latest
+            else NOT_FETCHED,
+        )
+        for source in repo.list_sources(session, program_id)
+        if source.id is not None
+    ]
     job = repo.latest_job_for_program(session, program_id)
     host = urlsplit(program.url).hostname or program.url
     return ProgramCard(
@@ -167,6 +187,7 @@ def _card(session: Session, program: Program, source_count: int) -> ProgramCard:
         drop_reason=program.drop_reason,
         source_count=source_count,
         fetch_summary=summary,
+        sources=sources,
         latest_job_id=job.id if job else None,
         actions=allowed_actions(program.status),
     )

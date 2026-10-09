@@ -4,9 +4,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
-from fixture_site import FixtureSite
+from fixture_site import APOSTROPHE_PATH, FixtureSite
+from helpers import job_id_from_redirect, wait_for_job
 from helpers import submit_add_form as submit
-from helpers import wait_for_job
 from verigrad.config import Settings
 from verigrad.core.store import repository as repo
 from verigrad.core.store.models import (
@@ -171,3 +171,66 @@ def test_refetch_creates_a_new_snapshot(web: TestClient, site: FixtureSite) -> N
     with Session(engine) as session:
         rows = session.exec(select(Snapshot).where(Snapshot.source_id == source_id)).all()
     assert len(rows) == 2
+
+
+def _add_source(web: TestClient, program_id: int, url: str, role: str = "admissions") -> int:
+    response = web.post(
+        f"/tracker/programs/{program_id}/sources",
+        data={"url": url, "role": role},
+        follow_redirects=False,
+    )
+    return job_id_from_redirect(response)
+
+
+def _program_of(web: TestClient, job_id: int) -> int:
+    with Session(web.app.state.engine) as session:  # type: ignore[attr-defined]
+        program_id = session.get(Job, job_id).program_id  # type: ignore[union-attr]
+    assert program_id is not None
+    return program_id
+
+
+@pytest.mark.browser
+@pytest.mark.usefixtures("chromium")
+def test_add_source_fetches_only_it_and_reuses_a_shared_snapshot(
+    web: TestClient, site: FixtureSite
+) -> None:
+    shared = site.url("json.html")
+    wait_for_job(web, submit(web, [(site.url("normal.html"), "program"), (shared, "admissions")]))
+    first_b = submit(web, [(site.url("hidden.html"), "program")])
+    wait_for_job(web, first_b)
+    program_b = _program_of(web, first_b)
+    hits = site.hits.copy()
+
+    job_id = _add_source(web, program_b, shared)
+    assert wait_for_job(web, job_id).status == JobStatus.SUCCEEDED
+
+    assert site.hits == hits  # nothing fetched: the shared page was reused
+    panel = web.get(f"/add/jobs/{job_id}/panel").text
+    assert panel.count("data-state=") == 1 and 'data-state="reused"' in panel
+    with Session(web.app.state.engine) as session:  # type: ignore[attr-defined]
+        assert len(repo.list_sources(session, program_b)) == 2
+        rows = session.exec(select(Snapshot).where(Snapshot.program_id == program_b)).all()
+    assert len(rows) == 2  # the earlier snapshot of hidden.html is untouched
+
+
+@pytest.mark.browser
+@pytest.mark.usefixtures("chromium")
+def test_add_source_with_an_apostrophe_in_the_url(
+    web: TestClient, site: FixtureSite, settings: Settings
+) -> None:
+    first = submit(web, [(site.url("normal.html"), "program")])
+    wait_for_job(web, first)
+    url = site.url(APOSTROPHE_PATH)
+
+    job_id = _add_source(web, _program_of(web, first), url)
+    assert wait_for_job(web, job_id).status == JobStatus.SUCCEEDED
+
+    assert site.hits[APOSTROPHE_PATH] == 1
+    panel = web.get(f"/add/jobs/{job_id}/panel").text
+    assert 'data-state="saved"' in panel
+    with Session(web.app.state.engine) as session:  # type: ignore[attr-defined]
+        snapshot = session.exec(select(Snapshot).where(Snapshot.url == url)).one()
+    assert snapshot.fetch_outcome == FetchOutcome.SUCCESS
+    assert snapshot.visible_text_path is not None
+    text = settings.data_dir / snapshot.snapshot_dir / snapshot.visible_text_path
+    assert "APOSTROPHE_MARKER" in text.read_text(encoding="utf-8")

@@ -10,6 +10,8 @@ from typing import Annotated
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 
+from verigrad.core.fetch import actions
+from verigrad.core.store.models import SourceRole
 from verigrad.core.tracker import service
 from verigrad.core.tracker.status import InvalidTransition, TrackerAction, TrackerFilter
 from verigrad.web.routes import context, templates
@@ -78,6 +80,30 @@ def delete(
     return templates.TemplateResponse(request, "_deleted.html", values)
 
 
+@router.post("/tracker/programs/{program_id}/sources", response_model=None)
+def add_source(
+    request: Request,
+    program_id: int,
+    url: Annotated[str, Form()] = "",
+    role: Annotated[str, Form()] = SourceRole.ADMISSIONS.value,
+    filter: Annotated[str, Form()] = "",
+) -> Response:
+    """Attach a URL to this programme and go to its fetch job page (same flow as /add)."""
+    current = TrackerFilter.parse(filter)
+    engine, runner = request.app.state.engine, request.app.state.runner
+    try:
+        job_id = actions.add_source(engine, runner, program_id, url, role)
+    except LookupError:
+        return _error(request, program_id, current, NOT_FOUND, 404)
+    except actions.SourceRejected as exc:
+        form = {"url": url, "role": role}
+        return _error(request, program_id, current, str(exc), exc.status_code, form)
+    location = f"/add/jobs/{job_id}"
+    if _is_htmx(request):
+        return Response(status_code=204, headers={"HX-Redirect": location})
+    return RedirectResponse(location, status_code=303)
+
+
 @router.post("/tracker/programs/{program_id}/{action}", response_model=None)
 def act(
     request: Request,
@@ -106,7 +132,12 @@ def act(
 
 
 def _error(
-    request: Request, program_id: int, current: TrackerFilter, message: str, status_code: int
+    request: Request,
+    program_id: int,
+    current: TrackerFilter,
+    message: str,
+    status_code: int,
+    source_form: dict[str, str] | None = None,
 ) -> Response:
     if not _is_htmx(request):
         if status_code == 404:
@@ -118,7 +149,7 @@ def _error(
     if found is None:
         values |= {"program_id": program_id}
         return templates.TemplateResponse(request, "_program_gone.html", values, status_code=404)
-    values |= {"card": found}
+    values |= {"card": found, "source_form": source_form}
     return templates.TemplateResponse(request, "_card_update.html", values, status_code=status_code)
 
 
