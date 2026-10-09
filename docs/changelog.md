@@ -2,6 +2,14 @@
 
 All notable changes, newest first.
 
+## 2026-10-09 — add a source URL to an existing programme (`feat/add-source`)
+- Tracker cards get **＋ Add source** (URL + role). It creates one `program_sources` row on that programme and starts a fetch job for only that source, then opens the usual job page. Same robots/delay/timeout rules; a URL another programme already snapshotted is reused, not fetched again. Existing sources and snapshots are untouched.
+- Validation reuses `normalise_url` and the role check (`actions.parse_source`, now shared with the Add page). A URL already on this programme → 409 with the message on the card; the same URL on a different programme is allowed; bad URL/role → 422; the 10-URL limit applies.
+- Cards list their sources (role, URL, latest outcome) in a collapsible "Sources" list. The tracker page now swaps 422 responses as well as 404/409.
+- Spec §1.4 Flow A step 1 says where extra URLs are added; the "not built yet" note is gone.
+- No schema change. No Claude calls.
+- Tests: 255 (13 new; 2 use the browser, including a page whose URL has an apostrophe, like KAUST's `/study/master's-degree`). Manual check on a scratch data dir against the real KAUST page: saved, then reused by a second programme.
+
 ## 2026-10-09 — docs: offerings + v2 page discovery (`docs/discovery-offerings`)
 - Direction change after hand-labelling KAUST: one programme's facts span 5–6 pages on two subdomains, and one page covers MS, MS/PhD and PhD.
 - D30: the user tracks **offerings** (programme + degree level), not pages; every value says which degree levels it applies to, or "not stated". Table changes decided in step 3.

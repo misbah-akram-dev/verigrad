@@ -52,7 +52,7 @@ Me (and anyone in the same position): an applicant tracking 10–20 masters prog
 ### 1.4 Core user flows (v1, all in the web app)
 
 **Flow A — Add a programme**
-1. I paste a URL on the **Add** page and press *Add*. I can add more source URLs for the same programme later (programme page, central admissions/deadlines page, scholarship page, …), each tagged with a role (§4.2 `program_sources`).
+1. I paste a URL on the **Add** page and press *Add*. I can add more source URLs for the same programme later with **Add source** on its Tracker card (programme page, central admissions/deadlines page, scholarship page, …), each tagged with a role (§4.2 `program_sources`). This fetches only the new URL (reusing an existing snapshot of it, if any), and the same URL can't be added to one programme twice.
 2. A progress panel shows: fetching → extracting → verifying (runs as a background job, 10–30 s).
 3. The system saves a **snapshot** per source: rendered HTML, screenshot, captured JSON responses, linked PDFs, linked to the source URL.
 4. Claude extracts the fields in §4.1 **from all of a programme's sources together**, each value with a **source quote** and which URL it came from.
@@ -65,9 +65,7 @@ Me (and anyone in the same position): an applicant tracking 10–20 masters prog
 1. I paste **one** URL (e.g. a department's programme page) on the **Add** page.
 2. A progress panel shows the discovery agent at work: pages found → fetched → extracting.
 3. I see **offering cards** (e.g. MS, MS/PhD, PhD) with key facts — deadlines, requirements, fees, funding — each with its badge and quote, plus a collapsible **"pages used"** list saying why each page was chosen.
-4. I tick the offerings I want; they go to the Tracker. If a page was missed, I add its URL to the programme by hand.
-
-v1 still needs **"add a source URL to an existing programme"** (step 1 above; not built yet).
+4. I tick the offerings I want; they go to the Tracker. If a page was missed, I add its URL to the programme by hand (*Add source*, built in v1).
 
 **Flow B — Check & confirm**
 1. The **Review** page lists MEDIUM/LOW fields across all programmes.

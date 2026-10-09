@@ -6,7 +6,11 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from verigrad.core.store.models import SourceRole
+
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+# Role choices for every source form (Add page rows, Add source on tracker cards).
+templates.env.globals["source_roles"] = [role.value for role in SourceRole]
 
 router = APIRouter()
 

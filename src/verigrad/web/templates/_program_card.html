@@ -56,6 +56,41 @@
     {%- for label, n in card.fetch_summary.items() %} · <span class="{{ outcome_styles[label] }}">{{ n }} {{ label }}</span>{% endfor %}
     {%- if card.latest_job_id %} · <a href="/add/jobs/{{ card.latest_job_id }}" class="text-indigo-700 hover:underline">snapshots</a>{% endif %}
   </p>
+  {% if card.sources %}
+  <details data-sources class="mt-1 text-sm">
+    <summary class="cursor-pointer text-xs text-slate-500 hover:text-slate-700">Sources</summary>
+    <ul class="mt-1 space-y-0.5">
+      {% for source in card.sources %}
+      <li class="flex flex-wrap items-baseline gap-x-2" data-source="{{ source.id }}">
+        <span class="text-xs text-slate-500">{{ source.role }}</span>
+        <a href="{{ source.url }}" target="_blank" rel="noopener noreferrer"
+           class="min-w-0 break-all text-indigo-700 hover:underline">{{ source.url }}</a>
+        <span class="text-xs {{ outcome_styles[source.label] }}">{{ source.label }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+
+  {% set add_url = "/tracker/programs/" ~ card.id ~ "/sources" %}
+  <details data-action="add-source" class="mt-2 text-sm" {% if source_form %}open{% endif %}>
+    <summary class="cursor-pointer text-xs font-medium text-indigo-700 hover:text-indigo-900">＋ Add source</summary>
+    <form method="post" action="{{ add_url }}" hx-post="{{ add_url }}" hx-target="{{ target }}" hx-swap="outerHTML"
+          class="mt-2 flex flex-col gap-2 sm:flex-row">
+      <input type="hidden" name="filter" value="{{ current_filter.value }}">
+      <input type="url" name="url" required value="{{ source_form.url if source_form else '' }}"
+             placeholder="https://university.edu/admissions" aria-label="Source URL"
+             class="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none">
+      {% set chosen = source_form.role if source_form else "admissions" %}
+      <select name="role" aria-label="Role of this URL"
+              class="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none">
+        {% for role in source_roles %}
+        <option value="{{ role }}" {% if role == chosen %}selected{% endif %}>{{ role }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="rounded-md border border-slate-300 px-3 py-1 font-medium text-slate-700 hover:bg-slate-50">Add &amp; fetch</button>
+    </form>
+  </details>
 
   {# Placeholder: funding badge + eligibility warning come from extraction (step 4, spec §1.4 Flow C). No data until then. #}
   <div data-slot="funding-eligibility"

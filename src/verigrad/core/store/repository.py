@@ -72,6 +72,23 @@ def find_program_by_program_url(session: Session, url: str) -> Program | None:
     ).first()
 
 
+def find_source(session: Session, program_id: int, url: str) -> ProgramSource | None:
+    return session.exec(
+        select(ProgramSource).where(
+            ProgramSource.program_id == program_id, ProgramSource.url == url
+        )
+    ).first()
+
+
+def add_source(session: Session, program_id: int, url: str, role: SourceRole) -> ProgramSource:
+    """Attach one more source to an existing programme; its other sources are untouched."""
+    source = ProgramSource(program_id=program_id, url=url, role=role)
+    session.add(source)
+    session.commit()
+    session.refresh(source)
+    return source
+
+
 def list_sources(session: Session, program_id: int) -> list[ProgramSource]:
     return list(
         session.exec(

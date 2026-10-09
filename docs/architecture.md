@@ -33,6 +33,8 @@ LLMClient.complete(purpose, messages, job_id?, program_id?, expected_output_toke
 
 ```text
 Add page ─► actions.add_programme ─► programs + program_sources + jobs row
+Tracker card "Add source" ─► actions.add_source ─► one program_sources row + jobs row
+                                   │                 (fetches only that source)
                                    └► JobRunner.submit (1 worker thread, own event loop;
                                        Proactor on Windows — never FastAPI's loop)
 service.run_fetch_job (per source, one browser per job):
@@ -62,7 +64,7 @@ Blocked/failed source ─► upload ─► manual_import (offline render) ─►
 | `evals/` | `python -m verigrad.evals` | Placeholder |
 
 ## Web (`src/verigrad/web/`)
-`app.py` (factory + lifespan → `init_db`, `JobRunner`, interrupted jobs → failed), `routes.py` (home + placeholders), `fetch_routes.py` (Add, job panel, re-fetch, import, snapshot files), `tracker_routes.py` (Tracker page, status actions, delete confirm + delete), `templates/` (Jinja2 + Tailwind CDN + HTMX).
+`app.py` (factory + lifespan → `init_db`, `JobRunner`, interrupted jobs → failed), `routes.py` (home + placeholders), `fetch_routes.py` (Add, job panel, re-fetch, import, snapshot files), `tracker_routes.py` (Tracker page, status actions, add a source, delete confirm + delete), `templates/` (Jinja2 + Tailwind CDN + HTMX).
 Pages: **Add** (built) · **Tracker** (built) · Programme · Review · Plan · Dashboard · Costs (placeholders until their step).
 
 ## Tracker path (`core/tracker/`)
@@ -70,6 +72,7 @@ Pages: **Add** (built) · **Tracker** (built) · Programme · Review · Plan · 
 ```text
 Tracker page ─► service.list_cards(filter) ─► programs + source counts + latest snapshot per source + latest job
 card button ─► POST /tracker/programs/{id}/{action} (HTMX)
+card "Add source" ─► POST /tracker/programs/{id}/sources ─► fetch/actions.add_source ─► job page
               ─► status.next_status (invalid → 409) ─► repo.set_program_status (+ status_changed_at)
               ◄── card partial + filter tabs (hx-swap-oob)
 Delete (DROPPED only) ─► GET …/delete: footprint (rows, folders to remove, shared folders, cost rows)

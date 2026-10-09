@@ -56,6 +56,16 @@ def normalise_url(raw: str) -> str | None:
     return urlunsplit((parts.scheme.lower(), netloc, parts.path or "/", parts.query, ""))
 
 
+def parse_source(raw: str, role: str) -> tuple[SourceInput | None, str | None]:
+    """One URL + role from a form: the normalised source, or an error message."""
+    url = normalise_url(raw)
+    if url is None:
+        return None, f"Not a valid http(s) URL: {raw.strip()}"
+    if role not in SourceRole._value2member_map_:
+        return None, f"Unknown role for {url}: {role}"
+    return SourceInput(url=url, role=SourceRole(role)), None
+
+
 def parse_add_form(
     name: str | None, urls: list[str], roles: list[str]
 ) -> tuple[AddRequest, list[str]]:
@@ -65,17 +75,14 @@ def parse_add_form(
     for raw, role in zip(urls, roles, strict=False):
         if not raw.strip():
             continue
-        url = normalise_url(raw)
-        if url is None:
-            errors.append(f"Not a valid http(s) URL: {raw.strip()}")
+        source, error = parse_source(raw, role)
+        if source is None:
+            errors.append(error or "Invalid source.")
             continue
-        if role not in SourceRole._value2member_map_:
-            errors.append(f"Unknown role for {url}: {role}")
+        if source.url in seen:
             continue
-        if url in seen:
-            continue
-        seen.add(url)
-        sources.append(SourceInput(url=url, role=SourceRole(role)))
+        seen.add(source.url)
+        sources.append(source)
     if not sources and not errors:
         errors.append("Add at least one URL.")
     if len(sources) > MAX_SOURCES:
@@ -107,6 +114,35 @@ def add_programme(engine: Engine, runner: JobRunner, request: AddRequest) -> Add
         assert program.id is not None
         job_id = _start_fetch(engine, runner, session, program.id)
     return AddOutcome(job_id=job_id)
+
+
+class SourceRejected(ValueError):
+    """The URL can't be added to this programme. `status_code`: 422 invalid input, 409 conflict."""
+
+    def __init__(self, message: str, status_code: int) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+def add_source(engine: Engine, runner: JobRunner, program_id: int, raw_url: str, role: str) -> int:
+    """Attach one URL to an existing programme and start a fetch job for just that source.
+
+    The fetch is not forced, so a URL another programme already snapshotted is reused (D8).
+    Returns the job id. Raises LookupError (unknown programme) or SourceRejected.
+    """
+    source_input, error = parse_source(raw_url, role)
+    if source_input is None:
+        raise SourceRejected(error or "Invalid source.", 422)
+    with Session(engine) as session:
+        if session.get(Program, program_id) is None:
+            raise LookupError(f"programme {program_id} not found")
+        if repo.find_source(session, program_id, source_input.url) is not None:
+            raise SourceRejected(f"{source_input.url} is already a source of this programme.", 409)
+        if len(repo.list_sources(session, program_id)) >= MAX_SOURCES:
+            raise SourceRejected(f"At most {MAX_SOURCES} URLs per programme.", 409)
+        source = repo.add_source(session, program_id, source_input.url, source_input.role)
+        assert source.id is not None
+        return _start_fetch(engine, runner, session, program_id, [source.id])
 
 
 def refetch_source(engine: Engine, runner: JobRunner, source_id: int) -> int | None:
