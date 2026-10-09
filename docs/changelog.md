@@ -2,6 +2,14 @@
 
 All notable changes, newest first.
 
+## 2026-10-09 — v1 step 7 (part): Tracker + status lifecycle (`feat/tracker`)
+- `core/tracker/status.py`: transition table per spec §6 plus undo result (`ADMITTED`/`REJECTED` → `APPLIED`) and withdraw (`APPLIED` → `DROPPED`, default reason "withdrawn"); restore → `TARGETING`; invalid transitions raise. Filters: Targeting (default), Saved, Applied (incl. results), Dropped, All.
+- Every status change records `status_changed_at`; restore clears the drop reason.
+- **Tracker** page: cards with name, university and country ("—" until step 4), host, status + date, source count, latest fetch outcome per source, link to snapshots, and an empty marked slot for the funding badge / eligibility warning (step 4). Buttons follow the status; HTMX swaps the card and updates tab counts out of band; results ask to confirm.
+- Permanent delete (dropped programmes only, confirm step, refused while a fetch job runs): removes rows and unused snapshot folders; a snapshot another programme reuses is handed over (oldest reusing row promoted); `llm_calls` kept with ids cleared. Decisions D28, D29.
+- No schema change. No Claude calls.
+- Tests: 239 (92 new, none need a browser). Manual check on a throwaway instance (scratch data dir; example.com/.org/.net): full lifecycle, delete with a shared admissions snapshot, fetch success rate unchanged.
+
 ## 2026-10-08 — snapshot meta records the browser (`feat/snapshot-browser-info`)
 - `meta.json` gains `browser: {name, version, channel}` (e.g. `chromium`, `141.0.7390.37`, `null` = Playwright's bundled build, or `msedge`/`chrome`), so a change in captured text can be traced to a browser upgrade or channel switch.
 - Set for fetched pages and offline-rendered HTML imports; `null` for robots.txt refusals and PDF uploads (no browser rendered them). Older `meta.json` files load unchanged (`browser` defaults to `null`).

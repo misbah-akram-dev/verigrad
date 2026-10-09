@@ -4,7 +4,7 @@
 
 **Current milestone:** v1 — Extraction engine + web app
 **Target:** v1 demo by end of week 2 (may run into early week 3)
-**Last session:** 2026-10-08 — GitHub Actions CI added on `chore/ci` (lint + full test suite, browser tests run in CI); snapshot `meta.json` records the browser (`feat/snapshot-browser-info`)
+**Last session:** 2026-10-09 — Tracker page + status lifecycle (`feat/tracker`, step 7 part 1); PR #7 re-landed on `main` as #8 (it had been merged into `chore/ci` only)
 
 ## v1 build steps (spec §2)
 - [x] 1. Repo setup, LLM wrapper, extraction schema, SQLite store, FastAPI skeleton
@@ -13,7 +13,7 @@
 - [ ] 4. Extraction + Programme page
 - [ ] 5. Verification checks 1–4 + confidence badges
 - [ ] 6. Label remaining ~25; `make eval`; baseline; Dashboard page
-- [ ] 7. Tracker + Review pages
+- [ ] 7. Tracker + Review pages — **Tracker + status lifecycle done**; remaining: Review page (needs extraction), user profile (§6.1), funding badge on cards (needs step 4)
 - [ ] 8. Planner + Plan page + `.ics`
 
 ## Numbers so far
@@ -24,7 +24,7 @@
 | Cost per programme | — | |
 | Cost estimate accuracy (`estimated_cost_usd` vs `cost_usd`) | — | |
 | Fetch success rate | **100%** — 8/8 sources (3 programmes), 0 blocked, 0 failed | 2026-10-07 |
-| Tests | 147 (no internet; 21 of them drive a real browser against a local fixture site). CI runs all of them on every PR, browser tests included | 2026-10-08 |
+| Tests | 239 (no internet; 21 of them drive a real browser against a local fixture site). CI runs all of them on every PR, browser tests included | 2026-10-09 |
 
 ### First real fetch run (2026-10-07, via the Add page, `make dev` with `--reload`)
 Browser: installed Edge (`VERIGRAD_BROWSER_CHANNEL=msedge`), because the Chromium download was blocked in that session; same Chromium engine. Delay 3 s per domain.
@@ -63,4 +63,5 @@ Docs-only update (`docs/funding-and-sources`): spec records multiple sources per
 Step 2 built (`feat/fetch`): `program_sources`, Playwright snapshots (HTML, text, visible text, screenshot, same-site JSON/PDFs, `meta.json`), polite fetching (robots.txt, per-domain delay, fetch once + reuse, explicit Re-fetch), block detection, manual import, background job runner, Add page with polling panel. Decisions D21–D27 in `docs/decisions.md`.
 CI (`chore/ci`): GitHub Actions runs `ruff check`, `ruff format --check` and the full `pytest` suite with Chromium installed on every PR and push to `main`; no secrets, `live` excluded. README has the status badge.
 Snapshot provenance (`feat/snapshot-browser-info`): each `meta.json` records `browser: {name, version, channel}`. Snapshots taken before this have `null`.
+Tracker (`feat/tracker`): `core/tracker/` (lifecycle rules, cards, permanent delete), Tracker page with HTMX actions and filters, confirmed delete for dropped programmes that keeps shared snapshot folders and cost rows (D28, D29). Built ahead of steps 3–6 because it doesn't need extraction; the card's funding/eligibility slot waits for step 4.
 Next: grow `docs/programs.md` toward ~30 programmes and snapshot them (finishes step 2), then step 3 — hand-label 5 programmes and fix the schema.
