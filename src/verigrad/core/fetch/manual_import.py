@@ -32,7 +32,7 @@ from verigrad.core.fetch.models import (
 )
 from verigrad.core.fetch.prepare import OPEN_DETAILS_JS
 from verigrad.core.fetch.service import new_snapshot_folder, snapshot_row
-from verigrad.core.fetch.snapshot import launch_browser, write_meta
+from verigrad.core.fetch.snapshot import browser_info, launch_browser, write_meta
 from verigrad.core.fetch.text import content_hash, html_to_text, normalise_lines, page_title
 from verigrad.core.jobs.models import JobProgress, SourceProgress, SourceState
 from verigrad.core.jobs.runner import save_progress
@@ -146,6 +146,7 @@ async def _import_html(settings: Settings, url: str, staged: StagedUpload) -> Sn
     try:
         async with async_playwright() as pw:
             browser = await launch_browser(pw, settings.browser_channel)
+            meta.browser = browser_info(browser, settings.browser_channel)
             try:
                 visible = await _render_offline(browser, html, staged.folder / SCREENSHOT)
             finally:
