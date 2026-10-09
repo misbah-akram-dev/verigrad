@@ -1,0 +1,7 @@
+<p id="program-{{ program_id }}" data-deleted
+   class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500">
+  Deleted “{{ name }}”: {{ result.removed_dirs | length }} snapshot folder(s) removed
+  {%- if result.kept_dirs %}, {{ result.kept_dirs | length }} shared folder(s) kept{% endif %}.
+  {% if result.errors %}<span class="text-rose-700">Could not remove: {{ result.errors | join("; ") }}</span>{% endif %}
+</p>
+{% with oob = true %}{% include "_tracker_tabs.html" %}{% endwith %}

@@ -18,7 +18,13 @@ NAV_PAGES: list[dict[str, str | int]] = [
         "blurb": "Paste a programme URL to snapshot it.",
         "built": 1,
     },
-    {"path": "/tracker", "label": "Tracker", "step": 7, "blurb": "Your shortlist and statuses."},
+    {
+        "path": "/tracker",
+        "label": "Tracker",
+        "step": 7,
+        "blurb": "Your shortlist and statuses.",
+        "built": 1,
+    },
     {
         "path": "/review",
         "label": "Review",

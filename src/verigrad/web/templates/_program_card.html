@@ -1,0 +1,89 @@
+{% set status_styles = {
+  "SAVED": "bg-slate-100 text-slate-700",
+  "TARGETING": "bg-indigo-100 text-indigo-800",
+  "APPLIED": "bg-sky-100 text-sky-800",
+  "ADMITTED": "bg-emerald-100 text-emerald-800",
+  "REJECTED": "bg-rose-100 text-rose-800",
+  "DROPPED": "bg-slate-200 text-slate-600",
+} %}
+{% set outcome_styles = {
+  "saved": "text-emerald-700", "uploaded": "text-violet-700",
+  "blocked": "text-amber-700", "failed": "text-rose-700", "not fetched": "text-slate-500",
+} %}
+{# action → (label, confirm question or "", button style) #}
+{% set buttons = {
+  "track": ("★ Track", "", "bg-indigo-600 text-white hover:bg-indigo-700"),
+  "apply": ("Mark applied", "Mark this programme as applied?", "bg-slate-800 text-white hover:bg-slate-900"),
+  "admit": ("Mark admitted", "Record the result as ADMITTED?", "bg-emerald-600 text-white hover:bg-emerald-700"),
+  "reject": ("Mark rejected", "Record the result as REJECTED?", "bg-rose-600 text-white hover:bg-rose-700"),
+  "undo-result": ("↶ Undo result", "", "border border-slate-300 text-slate-700 hover:bg-slate-50"),
+  "restore": ("↺ Restore", "", "border border-slate-300 text-slate-700 hover:bg-slate-50"),
+} %}
+{% set target = "#program-" ~ card.id %}
+<article id="program-{{ card.id }}" data-status="{{ card.status.value }}"
+         class="rounded-lg border border-slate-200 bg-white p-4">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div class="min-w-0">
+      <h2 class="font-medium text-slate-900">{{ card.name }}</h2>
+      <p class="text-sm text-slate-600">
+        <span data-field="university">{{ card.university or "—" }}</span> ·
+        <span data-field="country">{{ card.country or "—" }}</span> ·
+        <a href="{{ card.url }}" target="_blank" rel="noopener noreferrer" class="text-indigo-700 hover:underline">{{ card.host }}</a>
+      </p>
+    </div>
+    <div class="text-right">
+      <span class="rounded-full px-2.5 py-0.5 text-xs font-medium {{ status_styles[card.status.value] }}"
+            data-badge>{{ card.status.value }}</span>
+      <p class="mt-1 text-xs text-slate-400">since {{ card.status_changed_at.strftime("%d %b %Y") }}</p>
+    </div>
+  </div>
+
+  {% if card.status not in current_filter.statuses %}
+  <p class="mt-2 text-xs text-slate-500" data-moved>Moved to {{ card.status.value | capitalize }}; it leaves this list on the next load.</p>
+  {% endif %}
+  {% if card.drop_reason %}
+  <p class="mt-2 text-sm text-slate-600">Reason: <span data-field="drop-reason">{{ card.drop_reason }}</span></p>
+  {% endif %}
+
+  <p class="mt-2 text-sm text-slate-600">
+    {{ card.source_count }} source{{ "" if card.source_count == 1 else "s" }}
+    {%- for label, n in card.fetch_summary.items() %} · <span class="{{ outcome_styles[label] }}">{{ n }} {{ label }}</span>{% endfor %}
+    {%- if card.latest_job_id %} · <a href="/add/jobs/{{ card.latest_job_id }}" class="text-indigo-700 hover:underline">snapshots</a>{% endif %}
+  </p>
+
+  {# Placeholder: funding badge + eligibility warning come from extraction (step 4, spec §1.4 Flow C). No data until then. #}
+  <div data-slot="funding-eligibility"
+       class="mt-3 rounded border border-dashed border-slate-300 px-3 py-1.5 text-xs text-slate-400">
+    Funding badge &amp; eligibility warning: filled after extraction (step 4)
+  </div>
+
+  <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-sm">
+    {% for action in card.actions %}
+    {% set url = "/tracker/programs/" ~ card.id ~ "/" ~ action.value %}
+    {% if action.value == "drop" %}
+    <form method="post" action="{{ url }}" hx-post="{{ url }}" hx-target="{{ target }}" hx-swap="outerHTML"
+          class="flex items-center gap-1" data-action="drop">
+      <input type="hidden" name="filter" value="{{ current_filter.value }}">
+      <input type="text" name="reason" maxlength="500" aria-label="Reason (optional)"
+             placeholder="{{ 'withdrawn' if card.status.value == 'APPLIED' else 'reason (optional)' }}"
+             class="w-40 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none">
+      <button type="submit" class="rounded-md border border-slate-300 px-3 py-1 font-medium text-slate-700 hover:bg-slate-50">
+        ✕ {{ "Withdraw" if card.status.value == "APPLIED" else "Drop" }}
+      </button>
+    </form>
+    {% else %}
+    {% set label, confirm, style = buttons[action.value] %}
+    <form method="post" action="{{ url }}" hx-post="{{ url }}" hx-target="{{ target }}" hx-swap="outerHTML"
+          {% if confirm %}hx-confirm="{{ confirm }}"{% endif %} data-action="{{ action.value }}">
+      <input type="hidden" name="filter" value="{{ current_filter.value }}">
+      <button type="submit" class="rounded-md px-3 py-1 font-medium {{ style }}">{{ label }}</button>
+    </form>
+    {% endif %}
+    {% endfor %}
+    {% if card.status.value == "DROPPED" %}
+    <button type="button" hx-get="/tracker/programs/{{ card.id }}/delete?filter={{ current_filter.value }}"
+            hx-target="{{ target }}" hx-swap="outerHTML" data-action="delete"
+            class="ml-auto text-sm font-medium text-rose-700 hover:text-rose-900">Delete permanently…</button>
+    {% endif %}
+  </div>
+</article>

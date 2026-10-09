@@ -1,0 +1,32 @@
+{% set card = preview.card %}
+{% set fp = preview.footprint %}
+<article id="program-{{ card.id }}" data-confirm-delete
+         class="rounded-lg border border-rose-300 bg-rose-50 p-4 text-sm">
+  <h2 class="font-medium text-rose-900">Permanently delete “{{ card.name }}”?</h2>
+  <p class="mt-1 text-rose-800">This can't be undone. Dropping kept the data; deleting removes it.</p>
+  <ul class="mt-3 list-disc space-y-0.5 pl-5 text-slate-700">
+    <li>{{ fp.sources }} source URL(s), {{ fp.snapshots }} snapshot record(s), {{ fp.jobs }} job(s),
+      {{ fp.extractions }} extracted value(s), {{ fp.tasks }} task(s)</li>
+    <li data-remove-folders>{{ preview.folders_to_remove | length }} snapshot folder(s) removed from disk</li>
+    {% if fp.shared_dirs %}
+    <li data-shared-folders>Kept: {{ fp.shared_dirs | length }} snapshot folder(s) another programme also uses
+      <ul class="list-[circle] pl-5 text-xs text-slate-500">
+        {% for d in fp.shared_dirs %}<li><code>{{ d }}</code></li>{% endfor %}
+      </ul>
+    </li>
+    {% endif %}
+    {% if fp.llm_calls %}
+    <li data-cost-rows>Kept: {{ fp.llm_calls }} Claude cost record(s), detached from this programme so total spend stays right</li>
+    {% endif %}
+  </ul>
+  <div class="mt-4 flex gap-2">
+    <form method="post" action="/tracker/programs/{{ card.id }}/delete"
+          hx-post="/tracker/programs/{{ card.id }}/delete" hx-target="#program-{{ card.id }}" hx-swap="outerHTML">
+      <input type="hidden" name="filter" value="{{ current_filter.value }}">
+      <button type="submit" class="rounded-md bg-rose-600 px-3 py-1.5 font-medium text-white hover:bg-rose-700">Delete permanently</button>
+    </form>
+    <button type="button" hx-get="/tracker/programs/{{ card.id }}/card?filter={{ current_filter.value }}"
+            hx-target="#program-{{ card.id }}" hx-swap="outerHTML"
+            class="rounded-md border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
+  </div>
+</article>

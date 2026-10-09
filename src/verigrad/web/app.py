@@ -16,6 +16,7 @@ from verigrad.core.store.db import get_engine, init_db
 from verigrad.core.store.repository import fail_interrupted_jobs
 from verigrad.web.fetch_routes import router as fetch_router
 from verigrad.web.routes import router
+from verigrad.web.tracker_routes import router as tracker_router
 
 STATIC_DIR = Path(__file__).parent / "static"
 log = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.include_router(router)
     app.include_router(fetch_router)
+    app.include_router(tracker_router)
     return app
 
 
