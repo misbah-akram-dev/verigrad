@@ -100,6 +100,14 @@
 
 ## 4. Data and preferences
 
+### D29 — Status lifecycle: results can be corrected, applications withdrawn (2026-10-09)
+**Decision:** Spec §6 plus two moves: **undo result** (`ADMITTED`/`REJECTED` → `APPLIED`) and **withdraw** (`APPLIED` → `DROPPED`, reason "withdrawn" if none given). Restore always goes to `TARGETING`. Every other transition is rejected. Setting a result or marking applied asks for confirmation. The tracker's **Applied** filter shows `APPLIED`, `ADMITTED` and `REJECTED`; the badge says which.
+**Why:** A results click is easy to get wrong, and a strict one-way lifecycle would leave no fix short of editing the DB. Withdrawing is a real step after applying (another offer accepted). Restoring to `TARGETING` rather than the old status keeps the rule simple; an applied programme can be re-marked in one click. Results belong with applications, so they don't need their own tab.
+
+### D28 — Permanent delete: dropped only; shared snapshots handed over; spend kept (2026-10-09)
+**Decision:** Delete is offered only on `DROPPED` programmes, behind a confirmation that lists what will be removed and kept, and is refused while a fetch job for the programme runs. It removes the programme's rows and snapshot folders in one transaction, except: (a) an original snapshot another programme reuses (D22): the oldest reusing row becomes the original, the other reusers point at it, and the folder stays; (b) `llm_calls` rows stay, with `program_id`/`job_id` cleared. A folder is removed only when no remaining row points at it, and only inside `data/snapshots/`.
+**Why:** Two steps (drop, then delete) make accidental deletion unlikely. Promoting the reusing row keeps the shared page available to the other programme and leaves the fetch success rate unchanged (the shared fetch still counts once). Blocking the delete instead would tie programmes together. Cost rows record money actually spent; deleting them would make the Costs page undercount. No schema change was needed.
+
 ### D13 — Extract everything; the profile chooses (2026-10-07)
 **Decision:** Extraction records every deadline, funding option and eligibility restriction. A deterministic profile then picks: applicant type = international / non-EU; degree level = Master's; funding = fully funded first, otherwise whatever exists (partial → fee waiver → self-funded); programmes whose stated restrictions exclude me are flagged "not eligible"; unstated restrictions show "unknown".
 **Why:** Keeps evals honest (reading the page vs choosing for me are measured separately), lets check 4 see every candidate, and lets preferences change without re-extraction. Real cases: EDISS rounds differ by *funding route*; KAUST has a PhD-only round; KSU MSc AI is nationals-only; another candidate was single-gender with a religious requirement.

@@ -1,6 +1,7 @@
 # Verigrad — Project Spec
 
-> **Project:** Verigrad (masters application assistant) · **Status:** Draft v0.3 · **Owner:** Misbah · **Last updated:** 2026-10-07
+> **Project:** Verigrad (masters application assistant) · **Status:** Draft v0.4 · **Owner:** Misbah · **Last updated:** 2026-10-09
+> **Changes from v0.3:** status lifecycle gains undo-result and withdraw; Applied filter includes results; permanent-delete rules (shared snapshots, cost rows) (§1.4 Flow C, §6).
 > **Changes from v0.2:** multiple sources per programme (§4.2); extraction never filters deadlines/funding (§4.1, §5); `funding_options` added (§4.1); user profile + primary-deadline picker (§6, §7); funding UI on programme page and tracker (§1.4).
 
 ---
@@ -65,10 +66,11 @@ Me (and anyone in the same position): an applicant tracking 10–20 masters prog
 3. I accept, correct, or mark "not stated on page". Confirmed values are stored as user-confirmed.
 
 **Flow C — Shortlist**
-- The **Tracker** page shows `TARGETING` programmes by default; filters for Saved / Applied / Dropped / All.
-- Each card shows a **funding badge**: Fully funded / Partial / Self-funded / Unknown (not yet published), plus an eligibility warning when the profile flags the programme "not eligible" (§6.1).
-- Buttons: ★ track, ✕ drop (optional reason), ↺ restore, mark applied/result.
-- Dropping never deletes data; permanent delete is a separate, confirmed action.
+- The **Tracker** page shows `TARGETING` programmes by default; filters for Saved / Applied (includes Admitted/Rejected) / Dropped / All.
+- Each card shows name, university, country, sources count and the latest fetch outcome per source.
+- Each card shows a **funding badge**: Fully funded / Partial / Self-funded / Unknown (not yet published), plus an eligibility warning when the profile flags the programme "not eligible" (§6.1). Until extraction exists (step 4) the card has a marked, empty slot for these; university and country show "—".
+- Buttons (only those valid for the current status, §6): ★ track, ✕ drop (optional reason) / withdraw, ↺ restore, mark applied / admitted / rejected (asks to confirm), undo result. Actions update the card in place (HTMX).
+- Dropping never deletes data; permanent delete is a separate, confirmed action, offered only on dropped programmes.
 
 **Flow D — Plan**
 - The **Plan** page shows every task for targeted programmes with "start by" dates in **PKT**, worked backwards from the **primary deadline** (§7), chosen by my profile (§6.1), with overdue/soon highlighting. Other rounds are shown as fallbacks.
@@ -306,13 +308,18 @@ Confidence rules (first version, tuned later using calibration results):
 ## 6. Programme status lifecycle
 
 ```text
-SAVED ──★track──► TARGETING ──submitted──► APPLIED ──► ADMITTED / REJECTED
-  │                   │
-  └──✕drop──► DROPPED ◄──✕drop
+SAVED ──★track──► TARGETING ──submitted──► APPLIED ──result──► ADMITTED / REJECTED
+  │                   │                     │  ◄──undo result──────┘
+  └──✕drop──► DROPPED ◄──✕drop──────────────┘ (withdraw)
                  └──↺restore──► TARGETING
 ```
 - Only `TARGETING` and `APPLIED` programmes get planning, calendar entries and re-checks.
-- Drop = status change + optional reason. Data is kept. Permanent delete is a separate, confirmed action.
+- Any other transition is rejected. Every change records `status_changed_at`.
+- Drop = status change + optional reason. Withdrawing an application (`APPLIED` → `DROPPED`) records "withdrawn" when no reason is given. Restore always goes to `TARGETING` and clears the reason. Data is kept.
+- **Undo result** (`ADMITTED`/`REJECTED` → `APPLIED`) corrects a mis-recorded result.
+- **Permanent delete** is a separate, confirmed action, offered only for `DROPPED` programmes and refused while a fetch job for the programme is running. It removes the programme's rows (sources, snapshots, extractions, tasks, jobs) and its snapshot folders, except:
+  - a snapshot folder another programme reuses (shared admissions page, §3.4) is kept; the oldest reusing snapshot row becomes the original, so the fetch success rate is unchanged;
+  - `llm_calls` rows are kept with `program_id`/`job_id` cleared, so total spend stays true.
 - This is plain app state in SQLite — **never stored in AI memory**.
 
 ### 6.1 User profile and primary deadline

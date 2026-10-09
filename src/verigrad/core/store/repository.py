@@ -1,13 +1,15 @@
 """Repository functions. Callers pass a SQLModel `Session`; no other module writes SQL."""
 
+from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import delete, func, update
 from sqlmodel import Session, col, select
 
 from verigrad.core.store.models import (
+    Extraction,
     FetchOutcome,
     Job,
     JobKind,
@@ -15,8 +17,10 @@ from verigrad.core.store.models import (
     LLMCall,
     Program,
     ProgramSource,
+    ProgramStatus,
     Snapshot,
     SourceRole,
+    Task,
     utcnow,
 )
 
@@ -203,3 +207,164 @@ def fail_interrupted_jobs(session: Session) -> int:
         session.add(job)
     session.commit()
     return len(jobs)
+
+
+# --- tracker: status and listing ---------------------------------------------------------
+
+
+def set_program_status(
+    session: Session,
+    program_id: int,
+    status: ProgramStatus,
+    drop_reason: str | None,
+    now: Callable[[], datetime] = utcnow,
+) -> Program:
+    """Every status change records `status_changed_at`. Rules live in core/tracker/status.py."""
+    program = session.get(Program, program_id)
+    if program is None:
+        raise LookupError(f"programme {program_id} not found")
+    program.status = status
+    program.drop_reason = drop_reason
+    program.status_changed_at = now()
+    session.add(program)
+    session.commit()
+    session.refresh(program)
+    return program
+
+
+def list_programs(
+    session: Session, statuses: tuple[ProgramStatus, ...] | None = None
+) -> list[Program]:
+    query = select(Program).order_by(col(Program.status_changed_at).desc(), col(Program.id).desc())
+    if statuses is not None:
+        query = query.where(col(Program.status).in_(statuses))
+    return list(session.exec(query))
+
+
+def status_counts(session: Session) -> dict[ProgramStatus, int]:
+    rows = session.exec(select(Program.status, func.count()).group_by(col(Program.status))).all()
+    return {ProgramStatus(status): n for status, n in rows}
+
+
+def source_counts(session: Session) -> dict[int, int]:
+    rows = session.exec(
+        select(ProgramSource.program_id, func.count()).group_by(col(ProgramSource.program_id))
+    ).all()
+    return dict(rows)
+
+
+def has_active_job(session: Session, program_id: int) -> bool:
+    return (
+        session.exec(
+            select(Job.id).where(
+                Job.program_id == program_id,
+                col(Job.status).in_((JobStatus.QUEUED, JobStatus.RUNNING)),
+            )
+        ).first()
+        is not None
+    )
+
+
+# --- tracker: permanent delete -----------------------------------------------------------
+
+
+class ProgramFootprint(BaseModel):
+    """What a permanent delete touches. `shared_dirs` are snapshot folders that rows of other
+    programmes also point at; they are kept."""
+
+    sources: int = 0
+    snapshots: int = 0
+    extractions: int = 0
+    tasks: int = 0
+    jobs: int = 0
+    llm_calls: int = 0
+    snapshot_dirs: list[str] = []
+    shared_dirs: list[str] = []
+
+
+def program_footprint(session: Session, program_id: int) -> ProgramFootprint:
+    snapshots = session.exec(select(Snapshot).where(Snapshot.program_id == program_id)).all()
+    snapshot_ids = [s.id for s in snapshots]
+    job_ids = list(session.exec(select(Job.id).where(Job.program_id == program_id)))
+    dirs = sorted({s.snapshot_dir for s in snapshots})
+    return ProgramFootprint(
+        sources=_count(session, ProgramSource, col(ProgramSource.program_id) == program_id),
+        snapshots=len(snapshots),
+        extractions=_count(session, Extraction, col(Extraction.snapshot_id).in_(snapshot_ids)),
+        tasks=_count(session, Task, col(Task.program_id) == program_id),
+        jobs=len(job_ids),
+        llm_calls=_count(
+            session,
+            LLMCall,
+            (col(LLMCall.program_id) == program_id) | col(LLMCall.job_id).in_(job_ids),
+        ),
+        snapshot_dirs=dirs,
+        shared_dirs=[
+            d for d in dirs if snapshot_dir_in_use(session, d, exclude_program=program_id)
+        ],
+    )
+
+
+def snapshot_dir_in_use(
+    session: Session, snapshot_dir: str, exclude_program: int | None = None
+) -> bool:
+    """Does any snapshot row (optionally: of another programme) point at this folder?"""
+    query = select(Snapshot.id).where(Snapshot.snapshot_dir == snapshot_dir)
+    if exclude_program is not None:
+        query = query.where(Snapshot.program_id != exclude_program)
+    return session.exec(query).first() is not None
+
+
+def delete_program_rows(session: Session, program_id: int) -> list[str]:
+    """Delete a programme and everything that belongs to it, in one transaction.
+
+    - An original snapshot reused by another programme: the oldest reusing row is promoted to
+      original and the other reusers point at it, so the shared folder stays owned.
+    - `llm_calls` are kept (the spend happened) with `program_id`/`job_id` cleared.
+    Returns the programme's snapshot folders; the caller removes the ones no row uses any more.
+    """
+    if session.get(Program, program_id) is None:
+        raise LookupError(f"programme {program_id} not found")
+    snapshots = session.exec(select(Snapshot).where(Snapshot.program_id == program_id)).all()
+    snapshot_ids = [s.id for s in snapshots]
+    job_ids = list(session.exec(select(Job.id).where(Job.program_id == program_id)))
+
+    for original in snapshots:
+        reusers = session.exec(
+            select(Snapshot)
+            .where(Snapshot.reused_from_snapshot_id == original.id)
+            .where(Snapshot.program_id != program_id)
+            .order_by(col(Snapshot.id))
+        ).all()
+        if not reusers:
+            continue
+        promoted, others = reusers[0], reusers[1:]
+        promoted.reused_from_snapshot_id = None
+        session.add(promoted)
+        for other in others:
+            other.reused_from_snapshot_id = promoted.id
+            session.add(other)
+    session.flush()
+
+    session.exec(
+        update(Snapshot)
+        .where(col(Snapshot.program_id) == program_id)
+        .values(reused_from_snapshot_id=None)
+    )
+    session.exec(
+        update(LLMCall)
+        .where((col(LLMCall.program_id) == program_id) | col(LLMCall.job_id).in_(job_ids))
+        .values(program_id=None, job_id=None)
+    )
+    session.exec(delete(Extraction).where(col(Extraction.snapshot_id).in_(snapshot_ids)))
+    session.exec(delete(Task).where(col(Task.program_id) == program_id))
+    session.exec(delete(Snapshot).where(col(Snapshot.program_id) == program_id))
+    session.exec(delete(Job).where(col(Job.program_id) == program_id))
+    session.exec(delete(ProgramSource).where(col(ProgramSource.program_id) == program_id))
+    session.exec(delete(Program).where(col(Program.id) == program_id))
+    session.commit()
+    return sorted({s.snapshot_dir for s in snapshots})
+
+
+def _count(session: Session, table: type, condition: object) -> int:
+    return session.exec(select(func.count()).select_from(table).where(condition)).one()

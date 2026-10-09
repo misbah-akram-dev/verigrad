@@ -1,0 +1,10 @@
+<nav id="tracker-tabs" aria-label="Filter by status" class="flex flex-wrap gap-1 text-sm"
+     {% if oob %}hx-swap-oob="true"{% endif %}>
+  {% for tab in tabs %}
+  <a href="/tracker?filter={{ tab.filter.value }}" data-filter="{{ tab.filter.value }}"
+     class="rounded-md px-3 py-1.5 {% if tab.filter == current_filter %}bg-indigo-50 font-medium text-indigo-700{% else %}text-slate-600 hover:bg-slate-100 hover:text-slate-900{% endif %}"
+     {% if tab.filter == current_filter %}aria-current="true"{% endif %}>
+    {{ tab.label }} <span class="ml-0.5 text-xs text-slate-400" data-count>{{ tab.count }}</span>
+  </a>
+  {% endfor %}
+</nav>

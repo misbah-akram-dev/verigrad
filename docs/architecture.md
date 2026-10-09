@@ -55,13 +55,26 @@ Blocked/failed source ─► upload ─► manual_import (offline render) ─►
 | `core/fetch/` | `text` (selectolax), `polite` (robots, per-domain throttle, site rule), `blocking` (outcome rules), `prepare` (settle, cookies, accordions), `snapshot` (Playwright capture), `service` (fetch job), `manual_import`, `actions` (what web routes call) | Done (step 2) |
 | `core/verify/` | Checks 1–4 (v1), 5 (v2) → confidence | Not started |
 | `core/jobs/` | `JobRunner` (worker thread + own event loop), per-source progress model | Done (step 2) |
+| `core/tracker/` | `status` (lifecycle transitions, filters, drop reasons; pure), `service` (cards, actions, delete preview + delete), `files` (snapshot folder removal, only inside `data/snapshots/`) | Done (step 7, tracker part) |
 | `core/plan/` | Backwards planning, timezones, `.ics` | Not started |
 | `core/spider/` | (v2) Selector generation/repair, re-checks | Not started |
 | `evals/` | `python -m verigrad.evals` | Placeholder |
 
 ## Web (`src/verigrad/web/`)
-`app.py` (factory + lifespan → `init_db`, `JobRunner`, interrupted jobs → failed), `routes.py` (home + placeholders), `fetch_routes.py` (Add, job panel, re-fetch, import, snapshot files), `templates/` (Jinja2 + Tailwind CDN + HTMX).
-Pages: **Add** (built) · Programme · Review · Tracker · Plan · Dashboard · Costs (placeholders until their step).
+`app.py` (factory + lifespan → `init_db`, `JobRunner`, interrupted jobs → failed), `routes.py` (home + placeholders), `fetch_routes.py` (Add, job panel, re-fetch, import, snapshot files), `tracker_routes.py` (Tracker page, status actions, delete confirm + delete), `templates/` (Jinja2 + Tailwind CDN + HTMX).
+Pages: **Add** (built) · **Tracker** (built) · Programme · Review · Plan · Dashboard · Costs (placeholders until their step).
+
+## Tracker path (`core/tracker/`)
+
+```text
+Tracker page ─► service.list_cards(filter) ─► programs + source counts + latest snapshot per source + latest job
+card button ─► POST /tracker/programs/{id}/{action} (HTMX)
+              ─► status.next_status (invalid → 409) ─► repo.set_program_status (+ status_changed_at)
+              ◄── card partial + filter tabs (hx-swap-oob)
+Delete (DROPPED only) ─► GET …/delete: footprint (rows, folders to remove, shared folders, cost rows)
+                      ─► POST …/delete: repo.delete_program_rows (one transaction: promote reusers,
+                         clear llm_calls ids, delete rows) ─► files.remove_snapshot_folders (unused only)
+```
 
 ## Key decisions
 | Date | Decision | Why |
@@ -86,4 +99,6 @@ Pages: **Add** (built) · Programme · Review · Tracker · Plan · Dashboard ·
 | 2026-10-07 | Manual HTML imports rendered offline (JS off, network blocked); snapshot HTML served as `text/plain` + sandbox CSP | Keeps visible-text/hidden-text check working for uploads; untrusted HTML never renders on our origin (D25, D26) |
 | 2026-10-07 | Optional `VERIGRAD_BROWSER_CHANNEL` (msedge/chrome); default bundled Chromium | Fallback when the Chromium download is blocked (D27) |
 | 2026-10-07 | New `eligibility_restrictions: list[Evidence[Restriction]]` (nationality/gender/religious/other); unstated → `"unknown"`, never assumed absent; the picker flags a programme "not eligible" when a restriction excludes my profile | Real programmes exist with nationality- or gender-based restrictions that exclude the user outright; must surface this instead of silently tracking an inapplicable programme (spec §4.1, §6.1, `docs/programs.md`) |
+| 2026-10-09 | Status lifecycle = spec §6 + undo result + withdraw; restore → TARGETING; Applied filter includes results | Mis-recorded results must be fixable; withdrawing is a real step (D29) |
+| 2026-10-09 | Permanent delete only for DROPPED; reused snapshot handed to the oldest reusing row; `llm_calls` kept with ids cleared; folders removed only when unused | Safe two-step delete that keeps shared pages, the fetch success rate and total spend correct (D28) |
 | 2026-10-08 | GitHub Actions CI (lint + full `pytest`, Chromium installed); `VERIGRAD_REQUIRE_BROWSER=1` turns browser-test skips into failures; no secrets, `live` excluded | Browser tests must actually run somewhere on every PR; no API key in CI |
