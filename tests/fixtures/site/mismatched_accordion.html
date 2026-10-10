@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Graduate programmes — Example University</title>
+<style>
+  /* Bootstrap's collapse rules, without the CDN */
+  .collapse:not(.show) { display: none; }
+</style>
+</head>
+<body>
+  <nav>
+    <button class="navbar-toggler" aria-expanded="false" aria-controls="menu"
+            data-bs-toggle="collapse" data-bs-target="#menu">Menu</button>
+    <div id="menu" class="collapse navbar-collapse">NAV_MENU Home · Programmes · Contact</div>
+  </nav>
+  <main>
+    <h1>Graduate programmes</h1>
+    <p>Choose a programme below to read its admission requirements, duration and fees. All
+       programmes accept applications through the graduate portal for the Fall 2027 intake.</p>
+
+    <!-- Like KFUPM: buttons say "collapsed" but aria-expanded="true", so they are never clicked. -->
+    <div class="accordion" id="programs">
+      <h2><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+              data-bs-target="#c1" aria-expanded="true" aria-controls="c1">Executive MBA</button></h2>
+      <div id="c1" class="accordion-collapse collapse" data-bs-parent="#programs">
+        <p>ACC_ONE The Executive MBA requires five years of work experience.</p>
+      </div>
+      <h2><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+              data-bs-target="#c2" aria-expanded="true" aria-controls="c2">MS Data Science</button></h2>
+      <div id="c2" class="accordion-collapse collapse" data-bs-parent="#programs">
+        <p>ACC_TWO MS Data Science requires a GPA of 3.0 out of 4.</p>
+      </div>
+      <h2><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+              data-bs-target="#c3" aria-expanded="true" aria-controls="c3">MS Finance</button></h2>
+      <div id="c3" class="accordion-collapse collapse" data-bs-parent="#programs">
+        <p>ACC_THREE MS Finance requires the GMAT.</p>
+      </div>
+    </div>
+
+    <div class="collapse">ORPHAN_COLLAPSE No toggle points at this panel.</div>
+    <p style="display:none">HIDDEN_PARAGRAPH Deliberately invisible text.</p>
+  </main>
+</body>
+</html>

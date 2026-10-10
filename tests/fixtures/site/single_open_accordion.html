@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Country-specific requirements — Example University</title>
+<style>
+  .sp-collapse { display: none; }
+  .sp-collapse.show { display: block; }
+</style>
+<script>
+  // Like EDISS's accordion plugin: one section open at a time, target in data-sptarget.
+  // The previously open section stays visible while it animates closed (400 ms).
+  function openOnly(link) {
+    document.querySelectorAll('[data-sptarget]').forEach(other => {
+      const panel = document.querySelector(other.dataset.sptarget);
+      if (other === link || !panel.classList.contains('show')) return;
+      other.setAttribute('aria-expanded', 'false');
+      setTimeout(() => panel.classList.remove('show'), 400);
+    });
+    link.setAttribute('aria-expanded', 'true');
+    document.querySelector(link.dataset.sptarget).classList.add('show');
+    return false;
+  }
+</script>
+</head>
+<body>
+  <main>
+    <h1>Country-specific requirements</h1>
+    <p>Applicants who completed their degree in the countries below must send certified documents
+       by post. Open your country's section to read what the programme office accepts.</p>
+    <h3><a class="collapsed" href="#" data-sptarget="#p1" aria-expanded="false" onclick="return openOnly(this)">Africa</a></h3>
+    <div class="sp-collapse" id="p1">COUNTRY_1 Transcripts must be mailed by the awarding institution.</div>
+    <h3><a class="collapsed" href="#" data-sptarget="#p2" aria-expanded="false" onclick="return openOnly(this)">China</a></h3>
+    <div class="sp-collapse" id="p2">COUNTRY_2 A CHESICC verification report is required.</div>
+    <h3><a class="collapsed" href="#" data-sptarget="#p3" aria-expanded="false" onclick="return openOnly(this)">India</a></h3>
+    <div class="sp-collapse" id="p3">COUNTRY_3 Certified copies must be attested by the university.</div>
+    <h3><a class="collapsed" href="#" data-sptarget="#p4" aria-expanded="false" onclick="return openOnly(this)">Pakistan</a></h3>
+    <div class="sp-collapse" id="p4">COUNTRY_4 Degrees must be attested by the HEC.</div>
+    <h3><a class="collapsed" href="#" data-sptarget="#p5" aria-expanded="false" onclick="return openOnly(this)">Turkey</a></h3>
+    <div class="sp-collapse" id="p5">COUNTRY_5 An e-Devlet graduation certificate is accepted.</div>
+    <p style="display:none">HIDDEN_PARAGRAPH Deliberately invisible text.</p>
+  </main>
+</body>
+</html>

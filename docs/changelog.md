@@ -2,6 +2,18 @@
 
 All notable changes, newest first.
 
+## 2026-10-10 — fetcher reveals collapsed and tab panels (`fix/reveal-panels`)
+- Found on all 3 golden-set programmes: `visible_text.txt` missed real content. KFUPM's 47 programme panels were never opened (Bootstrap buttons say `collapsed` but `aria-expanded="true"`), only KAUST's active tab rendered (English Language and GRE/PGAT were missing), and EDISS's single-open accordion left 26 of 27 country sections closed.
+- `prepare.reveal_panels`: after the existing expansion, a DOM-only pass (no clicks) shows hidden panels that a rendered toggle points at by id (`aria-controls`, `data-*target="#id"`, `href="#id"`). Tab toggles may sit in a `nav`; other toggles must be outside `nav`/`header`. Menus, dialogs, fixed overlays and nav/header content are excluded, and hidden text no toggle points at stays hidden. It runs up to 3 rounds for nested panels, capped at 300. When toggles were clicked, it waits 1 s first so closing animations finish. Decision D32; spec §3.4 and §10.2 updated.
+- `meta.json` → `prep.panels_revealed` `{collapse, tab, disclosure}`, and the job panel shows the total. Old `meta.json` files still load.
+- Manual check (scratch data dir) on the 3 real pages, visible chars before → after:
+  - KFUPM: 6,315 → 120,447 (47 collapse panels);
+  - KAUST entry-requirements: 4,192 → 10,444 (5 tabs);
+  - EDISS country-specific: 5,406 → 43,534 (26 collapse panels + 1 already open = all 27).
+  No menu, chat or consent text appeared.
+- No schema change. No Claude calls.
+- Tests: 259 (4 new). There are 3 browser fixtures, one per pattern: an accordion with mismatched `aria-expanded`, ARIA tabs in a `nav`, and a single-open accordion that animates closed. Each has decoys (a nav menu, a collapse no toggle points at, a chat dialog, a `display:none` paragraph) that must stay out of `visible_text.txt`.
+
 ## 2026-10-09 — add a source URL to an existing programme (`feat/add-source`)
 - Tracker cards get **＋ Add source** (URL + role). It creates one `program_sources` row on that programme and starts a fetch job for only that source, then opens the usual job page. Same robots/delay/timeout rules; a URL another programme already snapshotted is reused, not fetched again. Existing sources and snapshots are untouched.
 - Validation reuses `normalise_url` and the role check (`actions.parse_source`, now shared with the Add page). A URL already on this programme → 409 with the message on the card; the same URL on a different programme is allowed; bad URL/role → 422; the 10-URL limit applies.

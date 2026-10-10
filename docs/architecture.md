@@ -41,7 +41,8 @@ service.run_fetch_job (per source, one browser per job):
   1. URL already has a SUCCESS/MANUAL_IMPORT snapshot? → reuse row (same folder), no request
   2. Politeness: robots.txt (RFC 9309, cached per origin) → per-domain delay (shared throttle)
   3. snapshot.snapshot_source: goto → prepare (settle, cookies, <details>/aria toggles,
-     navigation guard) → page.html, text.txt, visible_text.txt, screenshot, json/, pdfs/
+     navigation guard, reveal panels visible toggles point at — no clicks)
+     → page.html, text.txt, visible_text.txt, screenshot, json/, pdfs/
   4. blocking.classify → SUCCESS / BLOCKED / FAILED (+ reason) → meta.json + snapshots row
   5. jobs.progress (per-source state) ◄── panel polls /add/jobs/{id}/panel every 1 s
 Blocked/failed source ─► upload ─► manual_import (offline render) ─► MANUAL_IMPORT snapshot
@@ -54,7 +55,7 @@ Blocked/failed source ─► upload ─► manual_import (offline render) ─►
 | `core/llm/` | Claude wrapper: `pricing`, `guard`, `retry`, `client`; logging to `llm_calls` | Done (foundation) |
 | `core/store/` | SQLModel tables (spec §4.2) incl. `program_sources`, engine/`init_db`, repository (sources, snapshots, reuse, jobs, `fetch_stats`) | Done (steps 1–2) |
 | `core/extract/` | `schema.py` (spec §4.1) done; prompts + extraction in step 4 | Schema done |
-| `core/fetch/` | `text` (selectolax), `polite` (robots, per-domain throttle, site rule), `blocking` (outcome rules), `prepare` (settle, cookies, accordions), `snapshot` (Playwright capture), `service` (fetch job), `manual_import`, `actions` (what web routes call) | Done (step 2) |
+| `core/fetch/` | `text` (selectolax), `polite` (robots, per-domain throttle, site rule), `blocking` (outcome rules), `prepare` (settle, cookies, accordions, toggle-referenced collapse/tab panels), `snapshot` (Playwright capture), `service` (fetch job), `manual_import`, `actions` (what web routes call) | Done (step 2) |
 | `core/verify/` | Checks 1–4 (v1), 5 (v2) → confidence | Not started |
 | `core/jobs/` | `JobRunner` (worker thread + own event loop), per-source progress model | Done (step 2) |
 | `core/tracker/` | `status` (lifecycle transitions, filters, drop reasons; pure), `service` (cards, actions, delete preview + delete), `files` (snapshot folder removal, only inside `data/snapshots/`) | Done (step 7, tracker part) |
@@ -106,5 +107,6 @@ Delete (DROPPED only) ─► GET …/delete: footprint (rows, folders to remove,
 | 2026-10-09 | Status lifecycle = spec §6 + undo result + withdraw; restore → TARGETING; Applied filter includes results | Mis-recorded results must be fixable; withdrawing is a real step (D29) |
 | 2026-10-09 | Permanent delete only for DROPPED; reused snapshot handed to the oldest reusing row; `llm_calls` kept with ids cleared; folders removed only when unused | Safe two-step delete that keeps shared pages, the fetch success rate and total spend correct (D28) |
 | 2026-10-09 | The user tracks **offerings** (programme + degree level), not pages: extraction returns `offerings: list[Offering]`, each value with an applicability (degree levels or "not stated"); tables decided in step 3 | One page covers several degree levels and one offering's facts span several pages (D30) |
+| 2026-10-10 | Before the snapshot, reveal hidden panels that a visible toggle points at (aria-controls / `data-*target` / `href="#id"`); menus, dialogs, overlays and nav/header excluded; no extra clicks | `visible_text` missed requirements on all 3 golden-set programmes (accordions with wrong `aria-expanded`, tabs, single-open accordions); untargeted hidden text stays hidden for the hidden-text check (D32) |
 | 2026-10-09 | v2 page discovery agent (`core/discover/`): its only tool fetches already-found, same-site links | One pasted URL should be enough; link-following stays on-site and can't be redirected by a page (D31) |
 | 2026-10-08 | GitHub Actions CI (lint + full `pytest`, Chromium installed); `VERIGRAD_REQUIRE_BROWSER=1` turns browser-test skips into failures; no secrets, `live` excluded | Browser tests must actually run somewhere on every PR; no API key in CI |

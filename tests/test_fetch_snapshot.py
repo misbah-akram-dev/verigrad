@@ -9,7 +9,7 @@ import pytest
 from playwright.async_api import async_playwright
 
 from fixture_site import BROWSER_CHANNEL, FixtureSite
-from verigrad.core.fetch.models import SnapshotMeta, SnapshotResult
+from verigrad.core.fetch.models import RevealedPanels, SnapshotMeta, SnapshotResult
 from verigrad.core.fetch.polite import DomainThrottle, RobotsChecker
 from verigrad.core.fetch.snapshot import (
     Politeness,
@@ -78,6 +78,54 @@ def test_accordions_are_expanded_and_navigation_is_undone(
     assert not meta.prep.expansion_stopped
     assert site.hits["/away2.html"] == 0  # generic role=button is never clicked
     assert site.hits["/menu.html"] == 0  # toggles inside <header> are skipped
+
+
+@pytest.mark.parametrize(
+    ("path", "markers", "decoys", "revealed"),
+    [
+        # KFUPM: "collapsed" buttons with aria-expanded="true" are never clicked.
+        (
+            "mismatched_accordion.html",
+            ["ACC_ONE", "ACC_TWO", "ACC_THREE"],
+            ["NAV_MENU", "ORPHAN_COLLAPSE", "HIDDEN_PARAGRAPH"],
+            RevealedPanels(collapse=3),
+        ),
+        # KAUST: only the active tab renders; the tab list sits in a <nav>.
+        (
+            "tabs.html",
+            ["TAB_ONE", "TAB_TWO", "TAB_THREE"],
+            ["CHAT_WIDGET", "HIDDEN_PARAGRAPH"],
+            RevealedPanels(tab=2),
+        ),
+        # EDISS: one-open-at-a-time accordion; clicking leaves only the last section open.
+        (
+            "single_open_accordion.html",
+            [f"COUNTRY_{i}" for i in range(1, 6)],
+            ["HIDDEN_PARAGRAPH"],
+            RevealedPanels(collapse=4),
+        ),
+    ],
+)
+def test_panels_are_revealed_but_hidden_text_stays_hidden(
+    site: FixtureSite,
+    tmp_path: Path,
+    path: str,
+    markers: list[str],
+    decoys: list[str],
+    revealed: RevealedPanels,
+) -> None:
+    result = snap(site, path, tmp_path)
+    meta = result.meta
+    visible, text = read(result, "visible_text.txt"), read(result, "text.txt")
+    assert meta.outcome == FetchOutcome.SUCCESS
+    assert meta.prep.navigated_away == []
+    for marker in markers:
+        assert marker in visible, marker
+    for decoy in decoys:
+        assert decoy in text, decoy
+        assert decoy not in visible, decoy
+    assert meta.prep.panels_revealed == revealed
+    assert 'data-verigrad-revealed="' in read(result, "page.html")
 
 
 def test_same_site_json_is_saved_third_party_is_skipped(site: FixtureSite, tmp_path: Path) -> None:

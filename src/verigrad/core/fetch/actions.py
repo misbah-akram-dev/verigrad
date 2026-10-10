@@ -230,6 +230,7 @@ class SourceView(BaseModel):
     skipped_pdfs: int = 0
     details_opened: int = 0
     toggles_clicked: int = 0
+    panels_revealed: int = 0
     navigated_away: list[str] = []
     error: str | None = None
 
@@ -298,6 +299,7 @@ def _source_view(
         view.skipped_pdfs = len(meta.skipped_pdfs)
         view.details_opened = meta.prep.details_opened
         view.toggles_clicked = meta.prep.toggles_clicked
+        view.panels_revealed = meta.prep.panels_revealed.total
         view.navigated_away = meta.prep.navigated_away
         view.error = meta.error
     return view

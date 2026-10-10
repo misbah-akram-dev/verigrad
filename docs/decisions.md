@@ -32,6 +32,12 @@
 
 ## 2. Getting and reading pages
 
+### D32 — Reveal panels a visible toggle points at; never arbitrary hidden text (2026-10-10)
+**Decision:** After clicking toggles, the fetcher reveals hidden panels **without clicking**: an element is made visible (inline `!important` styles via CSSOM, marked `data-verigrad-revealed`) only when a rendered toggle on the page points at it by id (`aria-controls`, `data-*target="#id"`, `href="#id"`). `role=tab` toggles may sit in a `nav`; other toggles must be outside `nav`/`header`. Menus, dialogs, `position: fixed` overlays and anything in `nav`/`header` are never panels. If toggles were clicked, wait 1 s first so closing animations finish. `meta.json` records `panels_revealed` by type (collapse / tab / disclosure).
+**Why:** `visible_text.txt` missed real requirements on all 3 golden-set programmes: KFUPM's 47 programme panels (Bootstrap buttons say `collapsed` but `aria-expanded="true"`, so they were never clicked), KAUST's English Language and GRE/PGAT tabs (only the active tab renders), and 26 of EDISS's 27 country sections (a single-open accordion: each click closed the previous section). The rule is "content a visitor could reveal by clicking a visible control", which keeps the hidden-text check meaningful: text no control points at stays out of `visible_text.txt`.
+**Rejected:** clicking every `collapsed` toggle and tab (more clicks on live pages; single-open accordions defeat it; KAUST's tab buttons are inside a `nav`); revealing every `.collapse`/`.tab-pane` by class (would show orphan or decoy text); revealing all `display:none` (breaks the hidden-text check, D12).
+**Trade-off:** a page can point a visible button at injected text and get it revealed, but a visitor could reveal it the same way, so it isn't invisible text; quoting and verification still apply. Revealing everything makes some pages much larger (KFUPM 6.3k → 120k visible chars), which step 4 must handle.
+
 ### D31 — Autonomous page discovery from one URL (v2) (2026-10-09)
 **Decision:** I paste one URL. A discovery agent fetches it, collects its links, decides by itself which pages are relevant (deadlines, requirements, fees, funding, programme details), follows them and snapshots them; extraction then runs over all of them. I am never asked to choose pages.
 **Guardrails:**
