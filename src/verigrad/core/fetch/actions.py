@@ -1,5 +1,5 @@
-"""What the web layer calls: add a programme, re-fetch a source, build the job view, and
-resolve snapshot files safely. Routes stay thin; logic lives here."""
+"""What the web layer calls: add a programme, re-fetch a source or a whole programme, build the
+job view, and resolve snapshot files safely. Routes stay thin; logic lives here."""
 
 import json
 from pathlib import Path
@@ -152,6 +152,25 @@ def refetch_source(engine: Engine, runner: JobRunner, source_id: int) -> int | N
         if source is None:
             return None
         return _start_fetch(engine, runner, session, source.program_id, [source_id], force=True)
+
+
+class JobAlreadyActive(ValueError):
+    """A fetch job for this programme is still queued or running."""
+
+
+def refetch_program(engine: Engine, runner: JobRunner, program_id: int) -> int:
+    """One forced fetch job over every source of this programme (new snapshots; history kept).
+
+    Refused while a fetch job for the programme is queued or running, so a double-click doesn't
+    fetch every page twice. Returns the job id. Raises LookupError or JobAlreadyActive.
+    """
+    with Session(engine) as session:
+        if session.get(Program, program_id) is None:
+            raise LookupError(f"programme {program_id} not found")
+        if repo.has_active_job(session, program_id):
+            raise JobAlreadyActive("a fetch job for this programme is already queued or running")
+        source_ids = [s.id for s in repo.list_sources(session, program_id) if s.id is not None]
+        return _start_fetch(engine, runner, session, program_id, source_ids, force=True)
 
 
 def import_upload(

@@ -1,5 +1,5 @@
-"""Tracker page: programme cards, status actions (HTMX) and permanent delete. Thin: logic is in
-core/tracker/.
+"""Tracker page: programme cards, status actions (HTMX), add a source, re-fetch all sources and
+permanent delete. Thin: logic is in core/tracker/ and core/fetch/actions.py.
 
 Errors on HTMX requests keep their status code (404/409) but return the card, re-read from the
 DB, with the message on it (or a "no longer exists" note); tracker.html tells htmx to swap
@@ -98,10 +98,22 @@ def add_source(
     except actions.SourceRejected as exc:
         form = {"url": url, "role": role}
         return _error(request, program_id, current, str(exc), exc.status_code, form)
-    location = f"/add/jobs/{job_id}"
-    if _is_htmx(request):
-        return Response(status_code=204, headers={"HX-Redirect": location})
-    return RedirectResponse(location, status_code=303)
+    return _to_job(request, job_id)
+
+
+@router.post("/tracker/programs/{program_id}/refetch", response_model=None)
+def refetch_all(request: Request, program_id: int, filter: Annotated[str, Form()] = "") -> Response:
+    """One forced fetch job over all of this programme's sources; go to its job page."""
+    current = TrackerFilter.parse(filter)
+    engine, runner = request.app.state.engine, request.app.state.runner
+    try:
+        job_id = actions.refetch_program(engine, runner, program_id)
+    except LookupError:
+        return _error(request, program_id, current, NOT_FOUND, 404)
+    except actions.JobAlreadyActive as exc:
+        message = f"Not started: {exc}. Open the snapshots link to follow it."
+        return _error(request, program_id, current, message, 409)
+    return _to_job(request, job_id)
 
 
 @router.post("/tracker/programs/{program_id}/{action}", response_model=None)
@@ -151,6 +163,13 @@ def _error(
         return templates.TemplateResponse(request, "_program_gone.html", values, status_code=404)
     values |= {"card": found, "source_form": source_form}
     return templates.TemplateResponse(request, "_card_update.html", values, status_code=status_code)
+
+
+def _to_job(request: Request, job_id: int) -> Response:
+    location = f"/add/jobs/{job_id}"
+    if _is_htmx(request):
+        return Response(status_code=204, headers={"HX-Redirect": location})
+    return RedirectResponse(location, status_code=303)
 
 
 def _is_htmx(request: Request) -> bool:
