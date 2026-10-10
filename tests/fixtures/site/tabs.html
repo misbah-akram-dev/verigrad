@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Entry requirements — Example University</title>
+<style>
+  /* Bootstrap's tab and fade rules, without the CDN */
+  .tab-content > .tab-pane { display: none; }
+  .tab-content > .active { display: block; }
+  .fade:not(.show) { opacity: 0; }
+  #chat { display: none; position: fixed; bottom: 0; right: 0; }
+</style>
+</head>
+<body>
+  <main>
+    <h1>Entry requirements</h1>
+    <p>Applicants must hold a bachelor's degree and submit the documents listed below. Select a
+       tab to read the details for each document before you start your application.</p>
+
+    <!-- Like KAUST: the tab list sits in a <nav> inside the page body. -->
+    <nav>
+      <div class="nav nav-tabs" role="tablist">
+        <button class="nav-link active" role="tab" data-bs-toggle="tab" data-bs-target="#t1"
+                aria-controls="t1" aria-selected="true">Transcripts</button>
+        <button class="nav-link" role="tab" data-bs-toggle="tab" data-bs-target="#t2"
+                aria-controls="t2" aria-selected="false">English Language</button>
+        <button class="nav-link" role="tab" data-bs-toggle="tab" data-bs-target="#t3"
+                aria-controls="t3" aria-selected="false">GRE score</button>
+      </div>
+    </nav>
+    <div class="tab-content">
+      <div class="tab-pane fade show active" id="t1" role="tabpanel">
+        <p>TAB_ONE Submit official transcripts from every institution attended.</p>
+      </div>
+      <div class="tab-pane fade" id="t2" role="tabpanel">
+        <p>TAB_TWO IELTS 6.5 overall or TOEFL 79 is required.</p>
+      </div>
+      <div class="tab-pane fade" id="t3" role="tabpanel">
+        <p>TAB_THREE The GRE is optional but recommended.</p>
+      </div>
+    </div>
+
+    <p style="display:none">HIDDEN_PARAGRAPH Deliberately invisible text.</p>
+  </main>
+  <!-- Like KAUST's chat widget: a visible button controls a hidden dialog. -->
+  <button aria-label="Chat" aria-expanded="true" aria-controls="chat">Chat</button>
+  <div id="chat" role="dialog">CHAT_WIDGET How can we help?</div>
+</body>
+</html>

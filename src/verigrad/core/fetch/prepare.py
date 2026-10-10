@@ -3,6 +3,10 @@
 Expands only `<details>` and `aria-expanded="false"` toggles — never generic `role=button`
 elements. If a click navigates away, we go back, record it, and retry once without that toggle;
 a second navigation stops expansion.
+
+Then reveals, without clicking, hidden panels that a visible toggle points at (accordion/collapse
+panels, inactive tabs; D32). Hidden text nothing points at stays hidden, so `text.txt` minus
+`visible_text.txt` still means "deliberately invisible".
 """
 
 import logging
@@ -11,13 +15,15 @@ from urllib.parse import urldefrag
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import Page, Request
 
-from verigrad.core.fetch.models import PrepStats
+from verigrad.core.fetch.models import PrepStats, RevealedPanels
 
 log = logging.getLogger(__name__)
 
 SETTLE_TIMEOUT_MS = 10_000
 MAX_TOGGLES = 50
 AFTER_CLICK_MS = 250
+MAX_PANELS = 300
+REVEAL_ROUNDS = 3  # a revealed panel can hold toggles for nested panels
 
 _COOKIE_JS = """
 () => {
@@ -75,6 +81,93 @@ _CLICK_TOGGLE_JS = """
   if (!el || el.getAttribute('aria-expanded') !== 'false') return false;
   el.click();
   return true;
+}
+"""
+
+
+# One reveal round (D32). A panel is shown only when a rendered toggle points at it by id
+# (aria-controls, a `data-*target="#id"` attribute, or href="#id"). Tab toggles (role=tab,
+# data-toggle=tab/pill) may sit in a <nav> (tab lists do); other toggles must be outside nav and
+# header (menus). Menus and overlays are never panels. Styles are set through CSSOM, which a
+# page's CSP can't block. A panel still unrendered afterwards (a hidden non-panel ancestor) is
+# restored. Returns counts by panel type.
+_REVEAL_PANELS_JS = """
+(max) => {
+  const isRealLink = (el) => {
+    if (el.tagName !== 'A') return false;
+    const href = (el.getAttribute('href') || '').trim();
+    return href !== '' && !href.startsWith('#') && !href.toLowerCase().startsWith('javascript:');
+  };
+  const toggleAttr = (el) =>
+    (el.getAttribute('data-bs-toggle') || el.getAttribute('data-toggle') || '').toLowerCase();
+  const toggleKind = (el) => {
+    const t = toggleAttr(el);
+    if (el.getAttribute('role') === 'tab' || ['tab', 'pill', 'list'].includes(t)) return 'tab';
+    if (el.hasAttribute('aria-expanded') || t === 'collapse') return 'disclosure';
+    return null;
+  };
+  const targetIds = (el) => {
+    const ids = (el.getAttribute('aria-controls') || '').split(/\s+/).filter(Boolean);
+    for (const attr of el.attributes) {
+      if (!attr.name.startsWith('data-') || !attr.name.endsWith('target')) continue;
+      const m = attr.value.trim().match(/^#([^\s#.,:>+~\[\]]+)$/);
+      if (m) ids.push(m[1]);
+    }
+    const href = (el.getAttribute('href') || '').trim();
+    if (/^#[^\s#]+$/.test(href)) ids.push(href.slice(1));
+    return ids;
+  };
+  const NOT_PANEL_ROLES = ['dialog', 'alertdialog', 'menu', 'menubar', 'listbox', 'tooltip'];
+  const NOT_PANEL_CLASSES = ['modal', 'offcanvas', 'dropdown-menu', 'navbar-collapse'];
+  const notAPanel = (p) => p.closest('nav, header') || p.tagName === 'DIALOG'
+    || NOT_PANEL_ROLES.includes(p.getAttribute('role'))
+    || NOT_PANEL_CLASSES.some(c => p.classList.contains(c))
+    || getComputedStyle(p).position === 'fixed';
+  const isHidden = (p) => {
+    if (p.getClientRects().length === 0) return true;
+    const style = getComputedStyle(p);
+    return style.visibility === 'hidden' || parseFloat(style.opacity) === 0
+      || p.getBoundingClientRect().height === 0;
+  };
+  const panelType = (p, kind, toggle) => {
+    if (kind === 'tab' || p.getAttribute('role') === 'tabpanel' || p.classList.contains('tab-pane'))
+      return 'tab';
+    if (toggleAttr(toggle) === 'collapse'
+        || Array.from(p.classList).some(c => c.toLowerCase().includes('collapse')))
+      return 'collapse';
+    return 'disclosure';
+  };
+  const SHOW = [['display', 'block'], ['visibility', 'visible'], ['opacity', '1'],
+    ['height', 'auto'], ['max-height', 'none'], ['overflow', 'visible'],
+    ['content-visibility', 'visible']];
+  const counts = {collapse: 0, tab: 0, disclosure: 0};
+  let left = max;
+  const toggles = document.querySelectorAll(
+    '[aria-expanded], [aria-controls], [role="tab"], [data-toggle], [data-bs-toggle]');
+  for (const toggle of toggles) {
+    const kind = toggleKind(toggle);
+    if (kind === null || toggle.closest(kind === 'tab' ? 'header' : 'nav, header')) continue;
+    if (isRealLink(toggle) || toggle.getClientRects().length === 0) continue;
+    for (const id of targetIds(toggle)) {
+      if (left <= 0) return counts;
+      const panel = document.getElementById(id);
+      if (!panel || panel.hasAttribute('data-verigrad-revealed')) continue;
+      if (panel.contains(toggle) || notAPanel(panel) || !isHidden(panel)) continue;
+      const saved = SHOW.map(([prop]) =>
+        [prop, panel.style.getPropertyValue(prop), panel.style.getPropertyPriority(prop)]);
+      SHOW.forEach(([prop, value]) => panel.style.setProperty(prop, value, 'important'));
+      if (panel.getClientRects().length === 0) {
+        saved.forEach(([prop, value, priority]) => value
+          ? panel.style.setProperty(prop, value, priority) : panel.style.removeProperty(prop));
+        continue;
+      }
+      const type = panelType(panel, kind, toggle);
+      panel.setAttribute('data-verigrad-revealed', type);
+      counts[type] += 1;
+      left -= 1;
+    }
+  }
+  return counts;
 }
 """
 
@@ -144,8 +237,29 @@ async def prepare_page(page: Page) -> PrepStats:
                 await _safe_eval(page, OPEN_DETAILS_JS, default=0)
     finally:
         watch.detach()
+    stats.panels_revealed = await reveal_panels(page)
     await scroll_through(page)
     return stats
+
+
+async def reveal_panels(page: Page) -> RevealedPanels:
+    """Show hidden panels that visible toggles point at, in rounds (nested panels). No clicks."""
+    total = RevealedPanels()
+    for _ in range(REVEAL_ROUNDS):
+        found: dict[str, int] = await _safe_eval(
+            page, _REVEAL_PANELS_JS, {}, MAX_PANELS - total.total
+        )
+        new = RevealedPanels.model_validate(found)
+        if new.total == 0:
+            break
+        total = RevealedPanels(
+            collapse=total.collapse + new.collapse,
+            tab=total.tab + new.tab,
+            disclosure=total.disclosure + new.disclosure,
+        )
+        if total.total >= MAX_PANELS:
+            break
+    return total
 
 
 async def _expand_once(

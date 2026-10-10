@@ -44,7 +44,7 @@
             JSON {{ source.json_count }} · PDFs {{ source.pdf_count }}{% if source.skipped_pdfs %} ({{ source.skipped_pdfs }} skipped){% endif %}
           </p>
           <p class="text-slate-500">
-            Expanded {{ source.details_opened }} &lt;details&gt; and {{ source.toggles_clicked }} toggles
+            Expanded {{ source.details_opened }} &lt;details&gt;, {{ source.toggles_clicked }} toggles, revealed {{ source.panels_revealed }} panels
             {%- if source.navigated_away %} · a toggle navigated away ({{ source.navigated_away | length }}), undone{% endif %}
             {%- if source.reused_from %} · reused snapshot #{{ source.reused_from }}{% endif %}
             {%- if source.imported %} · uploaded manually{% endif %}

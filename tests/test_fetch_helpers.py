@@ -244,3 +244,11 @@ def test_browser_info_records_an_installed_channel() -> None:
 def test_meta_json_written_before_browser_info_still_loads() -> None:
     meta = SnapshotMeta.model_validate({"url": "https://example.edu/", "outcome": "SUCCESS"})
     assert meta.browser is None
+
+
+def test_meta_json_written_before_panel_reveal_still_loads() -> None:
+    meta = SnapshotMeta.model_validate(
+        {"url": "https://example.edu/", "outcome": "SUCCESS", "prep": {"toggles_clicked": 3}}
+    )
+    assert meta.prep.toggles_clicked == 3
+    assert meta.prep.panels_revealed.total == 0

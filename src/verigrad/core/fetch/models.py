@@ -8,6 +8,18 @@ from pydantic import BaseModel, Field
 from verigrad.core.store.models import FetchOutcome, utcnow
 
 
+class RevealedPanels(BaseModel):
+    """Hidden panels made visible because a visible toggle on the page points at them (D32)."""
+
+    collapse: int = 0  # accordion/collapse panels (Bootstrap .collapse, plugin variants)
+    tab: int = 0  # inactive tab panels
+    disclosure: int = 0  # other aria-controls targets (e.g. `hidden` panels)
+
+    @property
+    def total(self) -> int:
+        return self.collapse + self.tab + self.disclosure
+
+
 class PrepStats(BaseModel):
     """What page preparation did before capture (all best-effort)."""
 
@@ -17,6 +29,7 @@ class PrepStats(BaseModel):
     toggles_clicked: int = 0
     navigated_away: list[str] = Field(default_factory=list)  # URLs a click took us to; we went back
     expansion_stopped: bool = False
+    panels_revealed: RevealedPanels = Field(default_factory=RevealedPanels)
 
 
 class BrowserInfo(BaseModel):
