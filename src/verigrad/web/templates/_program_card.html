@@ -51,11 +51,20 @@
   <p class="mt-2 text-sm text-slate-600">Reason: <span data-field="drop-reason">{{ card.drop_reason }}</span></p>
   {% endif %}
 
-  <p class="mt-2 text-sm text-slate-600">
+  {# A div, not a p: the Re-fetch all form can't live inside a paragraph. #}
+  <div class="mt-2 text-sm text-slate-600" data-fetch-summary>
     {{ card.source_count }} source{{ "" if card.source_count == 1 else "s" }}
     {%- for label, n in card.fetch_summary.items() %} · <span class="{{ outcome_styles[label] }}">{{ n }} {{ label }}</span>{% endfor %}
     {%- if card.latest_job_id %} · <a href="/add/jobs/{{ card.latest_job_id }}" class="text-indigo-700 hover:underline">snapshots</a>{% endif %}
-  </p>
+    {%- if card.source_count %}
+    {%- set refetch_url = "/tracker/programs/" ~ card.id ~ "/refetch" %} · <form method="post" action="{{ refetch_url }}" hx-post="{{ refetch_url }}" hx-target="{{ target }}" hx-swap="outerHTML"
+            hx-confirm="Re-fetch all {{ card.source_count }} source{{ '' if card.source_count == 1 else 's' }}? Each page is fetched again; old snapshots are kept."
+            class="inline" data-action="refetch-all">
+      <input type="hidden" name="filter" value="{{ current_filter.value }}">
+      <button type="submit" class="font-medium text-slate-700 hover:text-slate-900">&#8635; Re-fetch all</button>
+    </form>
+    {%- endif %}
+  </div>
   {% if card.sources %}
   <details data-sources class="mt-1 text-sm">
     <summary class="cursor-pointer text-xs text-slate-500 hover:text-slate-700">Sources</summary>
@@ -66,6 +75,9 @@
         <a href="{{ source.url }}" target="_blank" rel="noopener noreferrer"
            class="min-w-0 break-all text-indigo-700 hover:underline">{{ source.url }}</a>
         <span class="text-xs {{ outcome_styles[source.label] }}">{{ source.label }}</span>
+        <form method="post" action="/sources/{{ source.id }}/refetch" class="inline" data-action="refetch-source">
+          <button type="submit" class="text-xs font-medium text-slate-700 hover:text-slate-900">&#8635; Re-fetch</button>
+        </form>
       </li>
       {% endfor %}
     </ul>

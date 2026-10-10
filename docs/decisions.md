@@ -58,6 +58,7 @@
 
 ### D22 — Fetch once per URL; shared pages are reused; re-fetch is explicit (2026-10-07)
 **Decision:** If a URL already has a SUCCESS or MANUAL_IMPORT snapshot, any other source with that URL gets a row pointing at the same folder — no new request. Only a `program`-role URL identifies a duplicate programme; admissions, scholarship and fees pages may be shared (e.g. KAUST's central admission-timelines page). A per-source **Re-fetch** takes a new snapshot and keeps the old one.
+*Update 2026-10-10:* Tracker cards add **Re-fetch all**: one forced job over the programme's sources (ids fixed at the click), refused while a fetch job for that programme is queued or running, so a double-click can't fetch every page twice. Shared URLs still refresh only this programme's sources.
 **Why:** D8's "fetch once and reuse", applied to how universities actually publish: several programmes point at the same central page. Reused rows are not counted as fetch attempts, so the success rate stays honest.
 
 ### D23 — robots.txt by RFC 9309; disallow means BLOCKED (2026-10-07)

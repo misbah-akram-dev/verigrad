@@ -1,17 +1,22 @@
 """Tracker page and HTMX actions via TestClient (no browser, no network)."""
 
+import asyncio
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 
 from verigrad.config import Settings
+from verigrad.core.fetch import actions
 from verigrad.core.fetch.actions import MAX_SOURCES
 from verigrad.core.store import repository as repo
 from verigrad.core.store.models import (
     FetchOutcome,
     Job,
     JobKind,
+    JobStatus,
     Program,
     ProgramStatus,
     Snapshot,
@@ -457,3 +462,130 @@ def test_add_source_accepts_a_url_with_an_apostrophe(
     again = add_source(web, program_id, KAUST_MASTERS, headers=HTMX)
     assert again.status_code == 409 and "already a source of this programme" in again.text
     assert len(submitted) == 1
+
+
+# --- re-fetch from the card ---------------------------------------------------------------
+
+
+class Captured:
+    """Jobs handed to the runner, and what each one would fetch once run (no browser)."""
+
+    def __init__(self) -> None:
+        self.jobs: list[tuple[int, Any]] = []
+        self.fetches: list[dict[str, Any]] = []
+
+    def run_all(self) -> None:
+        for _, work in self.jobs:
+            asyncio.run(work())
+
+
+@pytest.fixture
+def captured(web: TestClient, monkeypatch: pytest.MonkeyPatch) -> Captured:
+    seen = Captured()
+
+    async def fake_fetch(engine, settings, throttle, job_id, program_id, source_ids, force):  # type: ignore[no-untyped-def]
+        seen.fetches.append(
+            {"job_id": job_id, "program_id": program_id, "source_ids": source_ids, "force": force}
+        )
+        return JobStatus.SUCCEEDED
+
+    runner = web.app.state.runner  # type: ignore[attr-defined]
+    monkeypatch.setattr(runner, "submit", lambda job_id, work: seen.jobs.append((job_id, work)))
+    monkeypatch.setattr(actions, "run_fetch_job", fake_fetch)
+    return seen
+
+
+def source_ids_of(engine: Engine, program_id: int) -> list[int]:
+    with Session(engine) as s:
+        return [src.id for src in repo.list_sources(s, program_id) if src.id is not None]
+
+
+def card_html(web: TestClient, program_id: int) -> str:
+    html = web.get("/tracker?filter=all").text
+    return html.split(f'id="program-{program_id}"', 1)[1].split("</article>", 1)[0]
+
+
+def test_card_offers_refetch_per_source_and_for_all(web: TestClient, db: Engine) -> None:
+    program_id = seed(db, "https://cs.uni.example/msc", extra=[(SHARED, SourceRole.ADMISSIONS)])
+    card = card_html(web, program_id)
+    sources = card.split("data-sources", 1)[1].split("</details>", 1)[0]
+    assert sources.count('data-action="refetch-source"') == 2
+    for source_id in source_ids_of(db, program_id):
+        assert f'action="/sources/{source_id}/refetch"' in sources
+    assert card.count('data-action="refetch-all"') == 1
+    assert f'hx-post="/tracker/programs/{program_id}/refetch"' in card
+    assert 'hx-confirm="Re-fetch all 2 sources?' in card
+
+
+def test_refetch_all_starts_one_forced_job_over_this_programmes_sources(
+    web: TestClient, db: Engine, captured: Captured
+) -> None:
+    extra = [(SHARED, SourceRole.ADMISSIONS), ("https://cs.uni.example/fees", SourceRole.FEES)]
+    a = seed(db, "https://cs.uni.example/msc", extra=extra)
+    b = seed(db, "https://other.example/", extra=[(SHARED, SourceRole.ADMISSIONS)])
+
+    response = web.post(f"/tracker/programs/{a}/refetch", data={"filter": "all"}, headers=HTMX)
+
+    jobs = jobs_of(db, a)
+    assert len(jobs) == 1 and jobs[0].kind == JobKind.FETCH and not jobs_of(db, b)
+    assert response.status_code == 204
+    assert response.headers["HX-Redirect"] == f"/add/jobs/{jobs[0].id}"
+    assert [job_id for job_id, _ in captured.jobs] == [jobs[0].id]
+    captured.run_all()
+    assert captured.fetches == [
+        {
+            "job_id": jobs[0].id,
+            "program_id": a,
+            "source_ids": source_ids_of(db, a),  # all 3 of A's; never B's copy of SHARED
+            "force": True,
+        }
+    ]
+
+
+def test_refetch_all_without_htmx_redirects_to_the_job_page(
+    web: TestClient, db: Engine, captured: Captured
+) -> None:
+    program_id = seed(db, "https://cs.uni.example/msc")
+    response = web.post(f"/tracker/programs/{program_id}/refetch", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/add/jobs/{captured.jobs[0][0]}"
+
+
+def test_refetch_one_source_from_the_card_fetches_only_it(
+    web: TestClient, db: Engine, captured: Captured
+) -> None:
+    program_id = seed(db, "https://cs.uni.example/msc", extra=[(SHARED, SourceRole.ADMISSIONS)])
+    second = source_ids_of(db, program_id)[1]
+    action = f"/sources/{second}/refetch"
+    assert f'action="{action}"' in card_html(web, program_id)
+
+    response = web.post(action, follow_redirects=False)
+
+    jobs = jobs_of(db, program_id)
+    assert len(jobs) == 1
+    assert response.status_code == 303 and response.headers["location"] == f"/add/jobs/{jobs[0].id}"
+    captured.run_all()
+    assert len(captured.fetches) == 1
+    assert captured.fetches[0]["source_ids"] == [second] and captured.fetches[0]["force"] is True
+
+
+def test_refetch_all_for_a_missing_programme(web: TestClient, captured: Captured) -> None:
+    response = web.post("/tracker/programs/999/refetch", headers=HTMX)
+    assert response.status_code == 404 and "This programme no longer exists" in response.text
+    assert web.post("/tracker/programs/999/refetch").status_code == 404
+    assert captured.jobs == []
+
+
+def test_refetch_all_refused_while_a_job_is_active(
+    web: TestClient, db: Engine, captured: Captured
+) -> None:
+    program_id = seed(db, "https://cs.uni.example/msc")
+    with Session(db) as s:
+        repo.create_job(s, JobKind.FETCH, program_id)  # queued, never submitted
+    response = web.post(f"/tracker/programs/{program_id}/refetch", headers=HTMX)
+    assert response.status_code == 409
+    assert f'id="program-{program_id}"' in response.text and "data-error" in response.text
+    assert "Not started: a fetch job for this programme is already queued or running." in (
+        response.text
+    )
+    assert len(jobs_of(db, program_id)) == 1 and captured.jobs == []

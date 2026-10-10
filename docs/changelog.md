@@ -2,6 +2,14 @@
 
 All notable changes, newest first.
 
+## 2026-10-10 — re-fetch from Tracker cards (`feat/card-refetch`)
+- Each source in a card's "Sources" list gets **↻ Re-fetch**. It posts to the same `/sources/{id}/refetch` as the job page's button: one forced job for that source, then the new job page.
+- Each card gets **↻ Re-fetch all** (asks to confirm). `actions.refetch_program` starts **one** forced fetch job over all of the programme's sources (ids fixed at the click): new snapshots, history kept, same robots/delay rules (shared throttle, single worker). It opens the new job page, which lists every source, so the card's "snapshots" link now shows them all.
+- Re-fetch all is refused (409, message on the card) while a fetch job for the programme is queued or running; a missing programme gives the usual "no longer exists" note. D22 has a one-line update; spec §1.4 Flow C and the polite-fetching note are updated.
+- The card's fetch summary line is now a `div` (a form can't sit inside a `p`).
+- No schema change. No Claude calls.
+- Tests: 266 (7 new; 1 uses the browser: Re-fetch all on a 2-source programme fetches both pages again, as `saved` not `reused`, and keeps both snapshots per source).
+
 ## 2026-10-10 — fetcher reveals collapsed and tab panels (`fix/reveal-panels`)
 - Found on all 3 golden-set programmes: `visible_text.txt` missed real content. KFUPM's 47 programme panels were never opened (Bootstrap buttons say `collapsed` but `aria-expanded="true"`), only KAUST's active tab rendered (English Language and GRE/PGAT were missing), and EDISS's single-open accordion left 26 of 27 country sections closed.
 - `prepare.reveal_panels`: after the existing expansion, a DOM-only pass (no clicks) shows hidden panels that a rendered toggle points at by id (`aria-controls`, `data-*target="#id"`, `href="#id"`). Tab toggles may sit in a `nav`; other toggles must be outside `nav`/`header`. Menus, dialogs, fixed overlays and nav/header content are excluded, and hidden text no toggle points at stays hidden. It runs up to 3 rounds for nested panels, capped at 300. When toggles were clicked, it waits 1 s first so closing animations finish. Decision D32; spec §3.4 and §10.2 updated.

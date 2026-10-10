@@ -4,7 +4,7 @@
 
 **Current milestone:** v1 — Extraction engine + web app
 **Target:** v1 demo by end of week 2 (may run into early week 3)
-**Last session:** 2026-10-10 — fetcher reveals collapsed and tab panels (`fix/reveal-panels`)
+**Last session:** 2026-10-10 — re-fetch from Tracker cards (`feat/card-refetch`)
 
 ## v1 build steps (spec §2)
 - [x] 1. Repo setup, LLM wrapper, extraction schema, SQLite store, FastAPI skeleton
@@ -13,7 +13,7 @@
 - [ ] 4. Extraction + Programme page
 - [ ] 5. Verification checks 1–4 + confidence badges
 - [ ] 6. Label remaining ~25; `make eval`; baseline; Dashboard page
-- [ ] 7. Tracker + Review pages — **Tracker + status lifecycle done**; remaining: Review page (needs extraction), user profile (§6.1), funding badge on cards (needs step 4)
+- [ ] 7. Tracker + Review pages — **Tracker + status lifecycle done** (cards can add a source, re-fetch one source or re-fetch all); remaining: Review page (needs extraction), user profile (§6.1), funding badge on cards (needs step 4)
 - [ ] 8. Planner + Plan page + `.ics`
 
 ### Step 3 — schema friction found while hand-labelling KAUST
@@ -36,7 +36,7 @@ To handle in step 3 (plan mode):
 | Cost per programme | — | |
 | Cost estimate accuracy (`estimated_cost_usd` vs `cost_usd`) | — | |
 | Fetch success rate | **100%** — 8/8 sources (3 programmes), 0 blocked, 0 failed | 2026-10-07 |
-| Tests | 259 (no internet; 26 of them drive a real browser against a local fixture site). CI runs all of them on every PR, browser tests included | 2026-10-10 |
+| Tests | 266 (no internet; 27 of them drive a real browser against a local fixture site). CI runs all of them on every PR, browser tests included | 2026-10-10 |
 
 ### First real fetch run (2026-10-07, via the Add page, `make dev` with `--reload`)
 Browser: installed Edge (`VERIGRAD_BROWSER_CHANNEL=msedge`), because the Chromium download was blocked in that session; same Chromium engine. Delay 3 s per domain.
@@ -75,7 +75,7 @@ What is still only in `text.txt`: nav menus (KAUST), the cookie-consent dialog (
   - **Before the panel-reveal fix (D32), `visible_text` missed real requirements on all 3 programmes:** KFUPM programme details, KAUST's English Language/GRE tabs, and EDISS's 26 of 27 country sections. Re-fetch before deciding.
   - **Cost:** KFUPM's `visible_text` grew from 6,315 to 120,447 chars (≈30k input tokens, ≈$0.06 at the Sonnet price in `pricing.py`) because all 47 programmes' panels are now revealed, though we track one. Decide in step 4: send the whole page and measure, or trim to the relevant offering's panel (the `data-verigrad-revealed` markers in `page.html` make panels easy to find). Re-check `VERIGRAD_MAX_COST_PER_JOB` ($0.30) against programmes with several large sources.
 - **Label format for several offerings per programme:** decide in step 3 (KAUST label currently covers the MS offering only).
-- **Card's "snapshots" link after Add source / Re-fetch:** it opens the latest job, which lists only the source that job fetched, not all of the programme's sources. Fine for now; revisit with the Programme page (step 4).
+- **Card's "snapshots" link after Add source / Re-fetch:** it opens the latest job, which lists only the source that job fetched, not all of the programme's sources. After **Re-fetch all**, the latest job lists every source. Fine for now; revisit with the Programme page (step 4).
 - **URL spelling variants:** `normalise_url` doesn't percent-decode, so `master's-degree` and `master%27s-degree` count as different URLs (duplicate check and snapshot reuse miss the match). Not seen in practice yet.
 - **Shared-page staleness:** re-fetching a shared admissions page updates only that source; other programmes keep the older reused snapshot. Acceptable for v1; v2 weekly re-check should refresh all sources sharing a URL.
 
@@ -95,6 +95,7 @@ Tracker (`feat/tracker`): `core/tracker/` (lifecycle rules, cards, permanent del
 Direction change (`docs/discovery-offerings`, docs only): hand-labelling KAUST showed one programme's facts spread over 5–6 pages on two subdomains, and one page covering MS, MS/PhD and PhD. The user now tracks **offerings** (programme + degree level) with per-value applicability (D30), and v2 adds a **page discovery agent**: one URL → on-site pages → offerings (D31). Schema friction from the KAUST label is listed under step 3 above.
 Add a source (`feat/add-source`): each Tracker card has **＋ Add source** (URL + role) that attaches one `program_sources` row to the existing programme and starts a fetch job for just that URL, through the normal job page (same robots/delay/timeout, same shared-URL reuse). A URL already on the programme is refused (409, on the card); the same URL on another programme is allowed and reused. Cards now list their sources with each one's latest outcome. Manual check on a scratch data dir: KAUST `admissions.kaust.edu.sa/study/master's-degree` (apostrophe in the path) saved, HTTP 200, 6.3k visible chars; adding it to a second programme reused the snapshot.
 Panel-reveal fix (`fix/reveal-panels`): the fetcher now reveals hidden collapse/tab panels that a visible toggle points at, without clicking (D32). This fixes missing content on all 3 golden-set programmes; numbers are above.
+Card re-fetch (`feat/card-refetch`): each source on a Tracker card has **↻ Re-fetch** (same as the job page's), and each card has **↻ Re-fetch all**: one forced job over all its sources, new snapshots, history kept, refused while a fetch job for that programme is active (D22 update).
 Next:
-1. Re-fetch the existing golden-set sources (old snapshots predate the fix). Then use Add source to snapshot KAUST's missing pages; continue labelling (and grow `docs/programs.md` toward ~30 programmes, which finishes step 2).
+1. Re-fetch the existing golden-set sources with **↻ Re-fetch all** on each card (old snapshots predate the fix). Then use Add source to snapshot KAUST's missing pages; continue labelling (and grow `docs/programs.md` toward ~30 programmes, which finishes step 2).
 2. Step 3 — fix the schema (offerings, applicability, the friction list above).

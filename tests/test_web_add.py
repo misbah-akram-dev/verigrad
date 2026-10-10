@@ -8,6 +8,7 @@ from fixture_site import APOSTROPHE_PATH, FixtureSite
 from helpers import job_id_from_redirect, wait_for_job
 from helpers import submit_add_form as submit
 from verigrad.config import Settings
+from verigrad.core.jobs.models import JobProgress, SourceState
 from verigrad.core.store import repository as repo
 from verigrad.core.store.models import (
     FetchOutcome,
@@ -234,3 +235,34 @@ def test_add_source_with_an_apostrophe_in_the_url(
     assert snapshot.visible_text_path is not None
     text = settings.data_dir / snapshot.snapshot_dir / snapshot.visible_text_path
     assert "APOSTROPHE_MARKER" in text.read_text(encoding="utf-8")
+
+
+@pytest.mark.browser
+@pytest.mark.usefixtures("chromium")
+def test_refetch_all_fetches_every_source_again_and_keeps_history(
+    web: TestClient, site: FixtureSite
+) -> None:
+    first = submit(
+        web, [(site.url("normal.html"), "program"), (site.url("json.html"), "admissions")]
+    )
+    wait_for_job(web, first)
+    program_id = _program_of(web, first)
+    hits = site.hits.copy()
+
+    response = web.post(f"/tracker/programs/{program_id}/refetch", follow_redirects=False)
+    job_id = job_id_from_redirect(response)
+    job = wait_for_job(web, job_id)
+    assert job.status == JobStatus.SUCCEEDED
+
+    engine = web.app.state.engine  # type: ignore[attr-defined]
+    with Session(engine) as session:
+        source_ids = [s.id for s in repo.list_sources(session, program_id)]
+        rows = session.exec(select(Snapshot).where(Snapshot.program_id == program_id)).all()
+    progress = JobProgress.parse(job.progress).sources
+    assert [item.source_id for item in progress] == source_ids  # one job, every source
+    assert {item.state for item in progress} == {SourceState.SAVED}  # forced: not reused
+    for path in ("/normal.html", "/json.html"):
+        assert site.hits[path] == hits[path] + 1
+    for source_id in source_ids:  # history kept: old + new snapshot, different folders
+        dirs = {r.snapshot_dir for r in rows if r.source_id == source_id}
+        assert len(dirs) == 2
