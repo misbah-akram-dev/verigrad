@@ -7,10 +7,13 @@
 </style>
 <script>
   // Like EDISS's accordion plugin: one section open at a time, target in data-sptarget.
+  // The previously open section stays visible while it animates closed (400 ms).
   function openOnly(link) {
     document.querySelectorAll('[data-sptarget]').forEach(other => {
+      const panel = document.querySelector(other.dataset.sptarget);
+      if (other === link || !panel.classList.contains('show')) return;
       other.setAttribute('aria-expanded', 'false');
-      document.querySelector(other.dataset.sptarget).classList.remove('show');
+      setTimeout(() => panel.classList.remove('show'), 400);
     });
     link.setAttribute('aria-expanded', 'true');
     document.querySelector(link.dataset.sptarget).classList.add('show');

@@ -23,6 +23,7 @@ SETTLE_TIMEOUT_MS = 10_000
 MAX_TOGGLES = 50
 AFTER_CLICK_MS = 250
 MAX_PANELS = 300
+ANIMATION_WAIT_MS = 1_000  # let accordions finish closing (single-open) before revealing
 REVEAL_ROUNDS = 3  # a revealed panel can hold toggles for nested panels
 
 _COOKIE_JS = """
@@ -237,6 +238,8 @@ async def prepare_page(page: Page) -> PrepStats:
                 await _safe_eval(page, OPEN_DETAILS_JS, default=0)
     finally:
         watch.detach()
+    if stats.toggles_clicked:
+        await page.wait_for_timeout(ANIMATION_WAIT_MS)
     stats.panels_revealed = await reveal_panels(page)
     await scroll_through(page)
     return stats
